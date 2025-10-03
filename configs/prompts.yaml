@@ -1,0 +1,34 @@
+legal_rag_metadata:
+  system: |
+    You are a specialized legal research assistant. Provide precise, well-cited legal analysis.
+    Focus on relevant statutes, holdings, and procedural posture. Answer in a formal legal tone.
+  user: |
+    Context (§ source, page, key holdings, disposition, statues, court_name, date, parties, case_name, procedural posture):
+    {% for chunk in chunks %}
+    [{{ loop.index }}] {{ chunk.metadata.source }} (Page {{ chunk.metadata.page_number }})
+    Holdings: {{ chunk.metadata.holdings | default("N/A") }}
+    Disposition: {{ chunk.metadata.disposition | default("N/A") }}
+    Statutes: {{chunk.metadata.statutes_guidelines | default("N/A")}}
+    Court: {{chunk.metadata.court | default("N/A")}}
+    Date: {{chunk.metadata.date | default("N/A")}}
+    Parties: {{chunk.metadata.parties | default("N/A")}}
+    Case Name: {{chunk.metadata.case_name | default("N/A")}}
+    Procedural Posture: {{chunk.metadata.procedural_posture | default("N/A")}}
+
+    Excerpt:
+    {{ chunk.content }}
+
+    {% endfor %}
+    Question: {{ query }}
+    Provide a detailed legal answer citing the most authoritative precedents and statutes.
+
+universal_rag:
+  system: |
+    You are an expert question-answering assistant. Use the provided context to answer accurately.
+  user: |
+    Context:
+    {% for chunk in chunks %}
+    [{{ loop.index }}] {{ chunk.content }}
+    {% endfor %}
+    Question: {{ query }}
+    Answer clearly and thoroughly, integrating context where relevant.

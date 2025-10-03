@@ -1,0 +1,1 @@
+#Performs blue/green alias flips to new index versions after eval success, ensuring zero-downtime updates

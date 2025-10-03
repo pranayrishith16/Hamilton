@@ -1,0 +1,1 @@
+#Batch/stream embedding orchestration; ensures dimensionality and model consistency

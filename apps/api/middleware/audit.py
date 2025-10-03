@@ -1,0 +1,1 @@
+#Writes immutable audit events correlating to traces for compliance

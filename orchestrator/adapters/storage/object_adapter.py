@@ -1,0 +1,1 @@
+#Adapters that unify vector/search/object backends behind stable CRUD/search contracts

@@ -1,0 +1,1 @@
+#REST routes for query and chat, with domain tags to route legal/medical/general workloads
