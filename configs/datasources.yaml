@@ -1,0 +1,9 @@
+sources:
+  - name: local_files
+    type: files
+    path: data/
+targets:
+  - name: faiss_local
+    type: vector_store
+    path: .indexes/naive.faiss
+metadata_path: .indexes/metadata.json

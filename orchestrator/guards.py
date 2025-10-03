@@ -1,0 +1,1 @@
+#Governance/safety gates (e.g., denylist topics, PHI/PII redaction enforcement) at generation boundaries

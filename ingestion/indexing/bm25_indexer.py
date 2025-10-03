@@ -1,0 +1,1 @@
+#Full-text index build and analyzer settings for lexical retrieval

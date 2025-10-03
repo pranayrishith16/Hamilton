@@ -1,0 +1,1 @@
+#Policy and scope filters applied before context is passed to the generator

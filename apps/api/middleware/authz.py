@@ -1,0 +1,1 @@
+#Enforces RBAC/ABAC and policy decisions before retrieval; blocks unauthorized scopes

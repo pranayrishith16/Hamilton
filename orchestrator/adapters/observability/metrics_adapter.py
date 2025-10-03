@@ -1,0 +1,1 @@
+#Metrics sink abstraction for Prometheus/Datadog; exposes counters/histograms/gauges

@@ -1,0 +1,1 @@
+Instructions and patterns for adding or switching MLOps backends without touching core logic
