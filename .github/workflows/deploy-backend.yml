@@ -1,0 +1,55 @@
+name: CI/CD to Azure Container Apps
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  ACR_USERNAME:    ${{ secrets.ACR_USERNAME }}
+  ACR_PASSWORD:    ${{ secrets.ACR_PASSWORD }}
+  RESOURCE_GROUP:  ${{ secrets.RESOURCE_GROUP }}
+  ENVIRONMENT:     ${{ secrets.ENVIRONMENT }}
+  CONTAINER_APP:   ${{ secrets.CONTAINER_APP }}
+  IMAGE_NAME:      veritly-backend
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Log in to ACR
+      run: |
+        echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
+          --username ${{ secrets.ACR_USERNAME }} --password-stdin
+
+    - name: Build and push image
+      run: |
+        TAG=${{ github.sha }}
+        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG .
+        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
+
+    - name: Deploy to Container Apps
+      run: |
+        az containerapp update \
+          --name $CONTAINER_APP \
+          --resource-group $RESOURCE_GROUP \
+          --environment $ENVIRONMENT \
+          --image $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
+
+    - name: Show URL
+      run: |
+        URL=$(az containerapp show \
+          --name $CONTAINER_APP \
+          --resource-group $RESOURCE_GROUP \
+          --query properties.configuration.ingress.fqdn -o tsv)
+        echo "🚀 App deployed at: https://$URL"
