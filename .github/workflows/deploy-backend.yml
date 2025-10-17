@@ -35,8 +35,6 @@ jobs:
         password:     ${{ secrets.ACR_PASSWORD }}
 
     - name: Build and push image
-      env:
-        DOCKER_BUILDKIT: 0
       run: |
         TAG=${{ github.sha }}
         docker build --platform linux/amd64 -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG .
