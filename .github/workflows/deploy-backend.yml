@@ -33,14 +33,17 @@ jobs:
         login-server: ${{ secrets.ACR_LOGIN_SERVER }}
         username:     ${{ secrets.ACR_USERNAME }}
         password:     ${{ secrets.ACR_PASSWORD }}
-
+  
     - name: Build and push image
-      run: |
-        TAG=${{ github.sha }}
-        docker build --platform linux/amd64 -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG .
-        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
-    
-    
+      uses: docker/build-push-action@v3
+      with:
+        context: .
+        push: true
+        platforms: linux/amd64
+        tags: |
+          ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+  
+  
 
     - name: Deploy to Container Apps
       run: |
