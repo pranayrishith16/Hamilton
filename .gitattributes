@@ -1,3 +1,4 @@
+*.xml filter=lfs diff=lfs merge=lfs -text
 data/statutes/usc10.xml filter=lfs diff=lfs merge=lfs -text
 data/statutes/usc26.xml filter=lfs diff=lfs merge=lfs -text
 data/statutes/usc42.xml filter=lfs diff=lfs merge=lfs -text
