@@ -39,13 +39,10 @@ jobs:
         DOCKER_BUILDKIT: 0
       run: |
         TAG=${{ github.sha }}
-        docker build \
-          --platform linux/amd64 \
-          -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG \
-          .
+        docker build --platform linux/amd64 -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG .
         docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
-  
-  
+    
+    
 
     - name: Deploy to Container Apps
       run: |
