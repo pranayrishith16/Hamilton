@@ -1,15 +1,22 @@
 #Query-time DAG implementation: route→retrieve→rerank→generate→verify; emits traces/metrics
 
+from pathlib import Path
 from typing import Iterator, List, Optional, Dict, Any, AsyncGenerator
 import time
 import uuid
-
+import json
 from loguru import logger
 from orchestrator.interfaces import QueryResult
-from retrieval.retrievers.interface import Retriever
-from ingestion.dataprep.chunkers.base import Chunk
 from orchestrator.registry import registry
 from orchestrator.observability import trace_request, log_metrics
+
+# from orchestrations.mlflow.tracking import (
+#     start_run,
+#     log_param,
+#     log_metric,
+#     log_artifact,
+#     end_run,
+# )
 
 class Pipeline:
     """Main pipeline orchestrator for query processing."""
@@ -18,75 +25,100 @@ class Pipeline:
         self.pipeline_name = pipeline_name 
         self.request_id: Optional[str] = None
         self.logger = logger
+        self.artifacts_base = Path("orchestrations") / "artifacts"
         
     def query(self, query: str, k: int = 10, rerank_k: int = 5) -> QueryResult:
         """Process a query through the full pipeline."""
-        start_time = time.time()
         self.request_id = str(uuid.uuid4())
+        run_name = f"query_{self.request_id}"
+        run_artifacts = self.artifacts_base / run_name
+        run_artifacts.mkdir(parents=True, exist_ok=True)
+
+        # start_run(run_name, pipeline=self.pipeline_name, query=query, k=k, rerank_k=rerank_k)
+        # log_param("pipeline", self.pipeline_name)
+        # log_param("request_id", self.request_id)
+
+        start_time = time.time()
         
         with trace_request(self.request_id, "pipeline.query"):
-            try:
-                # Step 1: Retrieve relevant chunks
-                self.logger.info("Retrieval started")
-                t0 = time.time()
-                retriever = registry.get("hybrid_retriever")
-                chunks = retriever.retrieve(query, k=k)
-                t1 = time.time()
-                self.logger.info(f"Retrieval completed in {t1 - t0:.3f}s, retrieved {len(chunks)} chunks")
-                
-                # # Step 2: Rerank if configured
-                # chunks = retrieved_chunks
-                # if "cross_encoder_reranker" in registry.config:
-                #     reranker = registry.get("cross_encoder_reranker")
-                #     chunks = reranker.rerank(query, retrieved_chunks, k=rerank_k)
-                
-                # Step 3: Generate answer
-                self.logger.info("Generation started")
-                t0 = time.time()
-                generator = registry.get("generator")
-                raw_answer = generator.generate(query, chunks)
-                t1 = time.time()
-                self.logger.info(f"Generation completed in {t1 - t0:.3f}s")
+            # Step 1: Retrieve
+            t0 = time.time()
+            retriever = registry.get("hybrid_retriever")
+            chunks = retriever.retrieve(query, k=k)
+            t1 = time.time()
+            retrieval_time = t1 - t0
 
-                # Step 4: Post-process if available
-                answer = raw_answer
-                if "postprocessor" in registry.config:
-                    pp = registry.get("postprocessor")
-                    answer = pp.process(raw_answer, chunks)
-
-                # Step 5: Verify if available
-                verified = answer
-                if "verifier" in registry.config:
-                    verifier = registry.get("verifier")
-                    verified = verifier.verify(answer, query, chunks)
-                
-                # Build metadata
-                duration = time.time() - start_time
-                metadata: Dict[str, Any] = {
-                    "pipeline": self.pipeline_name,
-                    "request_id": self.request_id,
-                    "retrieved_count": len(chunks),
-                    "reranked_count": len(chunks),
-                    "generation_time": duration
+            # Save retrieved metadata artifact
+            sources = [
+                {
+                    "id": chunk.id,
+                    "content": chunk.content,
+                    "metadata": chunk.metadata,
                 }
+                for chunk in chunks
+]
+            retrieved_path = run_artifacts / "retrieved.json"
+            retrieved_path.write_text(json.dumps(sources, indent=2))
+            # log_artifact(str(retrieved_path), artifact_path="retrieved")
 
-                # Log overall metrics
-                log_metrics({
-                    "pipeline.duration": duration,
-                    "pipeline.retrieved": len(chunks),
-                    "pipeline.final_chunks": len(chunks)
-                })
+            # log_metric("retrieval.time_s", retrieval_time)
+            # log_metric("retrieval.count", len(chunks))
+            self.logger.info(f"Retrieved {len(chunks)} chunks in {retrieval_time:.3f}s")
+            
+            # Step 3: Generate answer
+            self.logger.info("Generation started")
+            t0 = time.time()
+            generator = registry.get("generator")
+            raw_answer = generator.generate(query, chunks)
+            t1 = time.time()
+            gen_time = t1 - t0
 
-                return QueryResult(
-                    query=query,
-                    answer=verified,
-                    retrieved_chunks=chunks,
-                    metadata=metadata
-                )
+            # Save raw answer artifact
+            answer_path = run_artifacts / "raw_answer.txt"
+            answer_path.write_text(raw_answer)
+            # log_artifact(str(answer_path), artifact_path="raw_answer")
 
-            except Exception:
-                log_metrics({"pipeline.errors": 1})
-                raise
+            # log_metric("generation.time_s", gen_time)
+            self.logger.info(f"Generated answer in {gen_time:.3f}s")
+
+            # Step 4: Post-process if available
+            answer = raw_answer
+            if "postprocessor" in registry.config:
+                pp = registry.get("postprocessor")
+                answer = pp.process(raw_answer, chunks)
+
+            # Step 5: Verify if available
+            verified = answer
+            if "verifier" in registry.config:
+                verifier = registry.get("verifier")
+                verified = verifier.verify(answer, query, chunks)
+                
+                # Final metrics
+            total_time = time.time() - start_time
+            # log_metric("pipeline.total_time_s", total_time)
+            # log_metric("pipeline.final_chunks", len(chunks))
+
+            # Save final answer artifact
+            # final_path = run_artifacts / "final_answer.txt"
+            # final_path.write_text(verified)
+            # log_artifact(str(final_path), artifact_path="final_answer")
+
+        # end_run()
+
+        metadata: Dict[str, Any] = {
+            "pipeline": self.pipeline_name,
+            "request_id": self.request_id,
+            "retrieved_count": len(chunks),
+            "generation_time_s": gen_time,
+            "total_time_s": total_time,
+        }
+
+        return QueryResult(
+            query=query,
+            answer=verified,
+            retrieved_chunks=chunks,
+            metadata=metadata,
+        )
 
     def query_stream(self, query: str, k: int) -> Iterator[Dict[str, Any]]:
         """
@@ -95,38 +127,43 @@ class Pipeline:
         - Then yields token deltas without metadata
         - Finally signals completion
         """
-        # 1. Retrieve context with metadata
-        t0 = time.perf_counter()
+        request_id = str(uuid.uuid4())
+        run_name = f"stream_{request_id}"
+        run_artifacts = self.artifacts_base / run_name
+        run_artifacts.mkdir(parents=True, exist_ok=True)
+
+        # start_run(run_name, pipeline=self.pipeline_name, query=query, k=k, stream=True)
+        # log_param("pipeline", self.pipeline_name)
+        # log_param("request_id", request_id)
+
+        # Retrieve
+        t0 = time.time()
         retriever = registry.get("hybrid_retriever")
-        result = retriever.retrieve(query, k=k)
-        context_chunks = result
-        t1 = time.perf_counter()
-
-        retrieval_ms = (t1 - t0) * 1000
-        print(f"[retrieval] {retrieval_ms:.1f} ms for k={k}")
+        chunks = retriever.retrieve(query, k=k)
+        t1 = time.time()
+        # log_metric("retrieval.time_s", t1 - t0)
+        # log_metric("retrieval.count", len(chunks))
 
 
-        # 2. Build a single metadata payload
+        # Emit metadata event
         sources = [
-            {
-                "source": c.metadata.get("source"),
-                "page_number": c.metadata.get("page_number"),
-                "id": c.id,
-                'content':c.content[:500]
-            }
-            for c in context_chunks
+            {"id": c.id, "source": c.metadata.get("source"), "snippet": c.content[:200]}
+            for c in chunks
         ]
-        # Emit initial metadata event
+        # retrieved_path = run_artifacts / "retrieved.json"
+        # retrieved_path.write_text(json.dumps(sources, indent=2))
+        # log_artifact(str(retrieved_path), artifact_path="retrieved")
         yield {"metadata": sources, "choices": [{"delta": {"content": ""}}]}
 
-        # 3. Stream text deltas
+        # Stream generation
         generator = registry.get("generator")
-        for chunk in generator.stream_generate(query, context_chunks):
-            # Each chunk is {"choices":[{"delta":{"content": "..."}}]}
-            yield chunk
+        for delta in generator.stream_generate(query, chunks):
+            yield delta
 
-        # 4. End of stream signal (if your SSE layer doesn’t do [DONE] itself)
+        # Done signal
         yield {"choices": [{"delta": {"content": "[DONE]"}}]}
+
+        # end_run()
 
     
     def batch_query(self, queries: List[str], **kwargs) -> List[QueryResult]:

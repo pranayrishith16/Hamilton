@@ -1,0 +1,10 @@
+{
+  "batch_id": "batch_data_20251006_025216",
+  "status": "success",
+  "files_processed": 200,
+  "total_pages": 200,
+  "total_chunks": 1258,
+  "embedding_dimension": 384,
+  "artifacts_location": "orchestrations/artifacts/batch_data_20251006_025216",
+  "timestamp": "2025-10-06T02:52:47.438815"
+}

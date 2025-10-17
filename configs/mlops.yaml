@@ -1,1 +1,12 @@
-Selection and credentials for mlops backend (mlflow or zenml) so tracking and lineage are swapped without code changes
+mlops:
+  backend: mlflow
+
+mlflow:
+  tracking_uri: "http://localhost:5050"
+  experiment_name: "document_ingestion"
+
+  artifact_uri: "file://$(pwd)/orchestrations/mlflow_artifacts"
+
+  default_tags:
+    team: "legal-rag"
+    project: "legal-document-pipeline"

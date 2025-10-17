@@ -1,0 +1,539 @@
+ 
+ 
+UNITED STATES COURT OF APPEALS 
+ 
+FOR THE TENTH CIRCUIT 
+_________________________________ 
+UNITED STATES OF AMERICA,  
+ 
+          Plaintiff - Appellee, 
+ 
+v. 
+ 
+SOPHIA MONIQUE ZAYAS,  
+ 
+          Defendant - Appellant. 
+ 
+ 
+ 
+No. 18-2154 
+(D.C. No. 2:12-CR-00944-RB-2) 
+(D. New Mexico) 
+_________________________________ 
+ORDER AND JUDGMENT* 
+_________________________________ 
+Before BACHARACH, SEYMOUR, and McHUGH, Circuit Judges. 
+_________________________________ 
+On February 24, 2014, Sophia Zayas pleaded guilty, through the Assimilated 
+Crimes Act, to the New Mexico crime of child abuse resulting in great bodily harm. 
+At the time of her guilty plea, the requisite mens rea under New Mexico law for child 
+abuse resulting in great bodily harm was criminal negligence, a standard satisfied 
+upon a showing that the defendant disregarded a risk of which she knew or should 
+have known. On August 21, 2014, the New Mexico Supreme Court overruled its 
+precedent and held the mens rea required to convict for child abuse resulting in great 
+bodily harm is recklessness—the defendant consciously disregarded a substantial and 
+                                              
+* This order and judgment is not binding precedent, except under the doctrines 
+of law of the case, res judicata, and collateral estoppel. It may be cited, however, for 
+its persuasive value consistent with Fed. R. App. P. 32.1 and 10th Cir. R. 32.1. 
+FILED 
+United States Court of Appeals 
+Tenth Circuit 
+ 
+February 6, 2020 
+ 
+Christopher M. Wolpert 
+Clerk of Court 
+2 
+ 
+unjustifiable risk. Ms. Zayas is entitled to the benefit of this change in the law 
+because it occurred before the district court entered judgment on September 28, 2018. 
+See Bradley v. Sch. Bd. of City of Richmond, 416 U.S. 696, 711 (1974) (stating “the 
+principle that a court is to apply the law in effect at the time it renders its decision, 
+unless doing so would result in manifest injustice or there is statutory direction or 
+legislative history to the contrary”).  
+Ms. Zayas moved to withdraw her guilty plea on the basis that it was not 
+knowing and voluntary because the district court had failed to explain adequately the 
+mens rea requirement. The district court denied Ms. Zayas’s motion, determining the 
+Information adequately informed Ms. Zayas of the recklessness requirement and that 
+Ms. Zayas had admitted facts consistent with that requirement in her plea agreement.  
+Because nothing in the record informed Ms. Zayas that the government would 
+be required to prove that she knew, rather than merely should have known, of the 
+risk, we conclude her plea was not knowing and voluntary and reverse the district 
+court’s denial of Ms. Zayas’s motion to withdraw.1 
+                                              
+1 Ms. Zayas’s briefing appears to challenge the acceptance of her guilty plea, 
+not the denial of her motion to withdraw the plea. At oral argument, Ms. Zayas’s 
+counsel clarified that Ms. Zayas is challenging the district court’s denial of her 
+motion to withdraw the plea. The government is not prejudiced by this clarification 
+because the government interpreted Ms. Zayas’s briefing as a challenge to the denial 
+of her motion to withdraw the plea.  
+3 
+ 
+I. 
+BACKGROUND 
+A. Factual History 
+During the relevant time period, Ms. Zayas was a member of the Air Force 
+living on Holloman Air Force base. On October 22, 2007, Ms. Zayas found her 
+two-month-old daughter, Annalicia Zayas, unresponsive thirty minutes after putting 
+Annalicia down for a nap. An autopsy showed Annalicia had suffered multiple skull 
+fractures, hemorrhages, and scalp contusions within two to three hours of her death. 
+The autopsy also revealed Annalicia had ten rib fractures in various stages of healing; 
+healing fractures to her right wrist bones; and lesions on her body, consistent with 
+cigarette burns, some of which were healing. The medical examiner ruled Annalicia’s 
+death a homicide. 
+On April 24, 2012, a grand jury indicted Ms. Zayas, charging her with various 
+violations of New Mexico law under the Assimilated Crimes Act, 18 U.S.C. §§ 7, 
+13.2 Ms. Zayas was arrested that same day. The United States filed multiple 
+superseding indictments before Ms. Zayas agreed to plead guilty to an Information. 
+The Information charged Ms. Zayas with the assimilated state crime of child abuse 
+                                              
+2 The Assimilated Crimes Act, 18 U.S.C. § 13, “performs a gap-filling function 
+by ‘borrowing state law’ to bolster the ‘federal criminal law that applies on federal 
+enclaves.’” United States v. Jones, 921 F.3d 932, 935 (10th Cir. 2019) (quoting Lewis 
+v. United States, 523 U.S. 155, 160 (1998)). It provides that anyone “guilty of any act 
+or omission which, although not made punishable by any enactment of Congress, 
+would be punishable if committed . . . within the jurisdiction of the State . . . in 
+which [the federal enclave] is situated, . . . shall be guilty of a like offense and 
+subject to a like punishment.” 18 U.S.C. § 13(a). The Air Force base where Annalicia 
+Zayas died is a federal enclave. 
+4 
+ 
+resulting in great bodily harm, a violation of 18 U.S.C. §§ 7, 13 and N.M. Stat. Ann. 
+§ 30-6-1(D)(1), (D)(2), and (E). Specifically, the Information alleged,  
+From on or about August 16, 2007, through on or about October 22, 
+2007, . . . in the District of New Mexico, at Holloman Air Force 
+Base, . . . the defendant, Sophia Monique Zayas, did negligently, and 
+without justifiable cause, cause and permit Jane Doe #1 . . . to be placed 
+in a situation that may endanger Jane Doe #1’s life and health, and to be 
+tortured and to be cruelly punished, which resulted in great bodily harm 
+to Jane Doe #1. 
+ 
+ROA, Vol. I at 170.3 
+On February 24, 2014, pursuant to a plea agreement, Ms. Zayas pleaded guilty 
+to the Information. The plea agreement included the following admission of facts: 
+On or about August 16, 2007 through October 22, 2007, I caused or 
+permitted Annalicia Zayas, my daughter who was less than 12 years of 
+age, to be placed in a situation which endangered her life or health or 
+tortured, cruelly confined or cruelly punished her. 
+ 
+I knew or should have known that my conduct created a substantial and 
+foreseeable risk that my daughter, Annalicia Zayas, would be physically 
+harmed or killed. I disregarded that risk, and I was wholly indifferent to 
+the consequences of the conduct and to the welfare and safety of my 
+daughter, Annalicia Zayas. 
+ 
+My actions resulted in great bodily harm to Annalicia. 
+ 
+Specifically, as a result of my actions, my daughter sustained the 
+following injuries between August 16, 2007 through October 22, 2007, 
+that constitute great bodily harm: 
+ 
+                                              
+3 The Information did not charge Ms. Zayas with abusing Annalicia, rather, it 
+charged Ms. Zayas with failing to protect Annalicia. Ms. Zayas has maintained that 
+her codefendant and husband, Peter Zayas, was responsible for inflicting the injuries 
+that caused Annalicia’s death. Although Mr. Zayas made inconsistent statements 
+regarding who was responsible for Annalicia’s death, on at least two occasions he 
+claimed sole responsibility for Annalicia’s injuries.  
+5 
+ 
+(1) 
+Posterior transverse skull fractures; 
+(2) 
+Rib fractures on at least two occasions; and 
+(3) 
+Radius and Ulna fractures 
+ 
+My actions and the above injuries all occurred in New Mexico, at 
+Holloman Air Force Base. 
+ 
+ROA, Vol. I at 175–76. 
+As part of the plea agreement, Ms. Zayas “agrees and represents that [her] plea 
+of guilty is freely and voluntarily made and is not the result of force, threats or 
+promises (other than the promises set forth in this plea agreement . . .).” ROA, Vol. I 
+at 177. Above Ms. Zayas’s signature, the following paragraph appeared: 
+This agreement has been read to me in the language I understand best, 
+and I have carefully discussed every part of it with my attorney. I 
+understand the terms of this agreement, and I voluntarily agree to those 
+terms. My attorney has advised me of my rights, of possible 
+defenses, . . . and of the consequences of entering into this 
+agreement. . . . Finally, I am satisfied with the representation of my 
+attorney in this matter. 
+ 
+ROA, Vol. I at 178. 
+At the plea hearing, the district court began by referencing the Information and 
+confirming that Ms. Zayas understood she would be pleading guilty to the charges set 
+forth in that document. After reviewing the maximum penalties for the charge and 
+Ms. Zayas’s waiver of indictment, the district court turned to the plea agreement. 
+Ms. Zayas acknowledged that she had read the plea agreement before she signed it, 
+had a chance to discuss the agreement with her attorneys, and understood its terms. 
+The district court also confirmed with Ms. Zayas that she understood the rights she 
+was giving up by entering a plea. Then, the district court had the government read the 
+6 
+ 
+factual basis from the plea agreement. Finally, the district court asked Ms. Zayas to 
+tell the court “in [her] own words why you think you’re guilty of what you’ve just 
+pled to.” ROA, Vol. I at 212. Ms. Zayas gave the following response: 
+Because I should have known. I didn’t know. I didn’t know that Anna 
+had rib fractures. I didn’t know that Anna had wrist fractures. I didn’t 
+know that Anna had a skull fracture. But -- and even though I have that 
+-- that -- that conviction in me and that’s what has -- that along with my 
+knowing that she was not murdered, has kept me fighting all of this [sic] 
+years. 
+But when the language says that I should have known . . . my 
+language used -- I used to say how could I? If I had known, I would 
+have . . . I would have helped my child, I would have seen. I would have 
+-- if I had known . . . things could be different. But I didn’t. But the 
+language says that I should have known because I am her parent. She’s 
+alive. And that -- that -- the -- the gross -- the injuries and how they 
+have -- could have occurred, even if accidental, was still negligent 
+because it wasn’t addressed. And so, although I never intended for Anna 
+to be hurt, although I had another child afterwards and raised her with 
+no injuries, I cannot deny that these injuries were, indeed, found. 
+So -- so I hurt for her. I wish I could have known, but I . . . and I 
+should have known, because I’m her mommy. And so that’s how I’ve 
+been able to -- the language is hard to stomach. It always -- it always 
+was, but I should have known. And I feel bad about that. I feel horrible. 
+ 
+ROA, Vol. I at 212–13 (ellipses in original). 
+In November 2015, Ms. Zayas’s counsel filed a motion to withdraw as counsel 
+and a motion written by Ms. Zayas to withdraw her guilty plea. At a hearing on 
+February 2, 2016, the district court granted counsel’s motion to withdraw. The 
+district court also determined Ms. Zayas’s plea was knowingly and voluntarily made 
+but withheld a final ruling on Ms. Zayas’s motion to withdraw her plea until new 
+counsel could review it. In October 2016, Ms. Zayas’s new counsel filed a 
+supplemental and an amended supplemental motion to withdraw Ms. Zayas’s guilty 
+7 
+ 
+plea. As relevant to this appeal, Ms. Zayas argued she should be permitted to 
+withdraw her plea because the district court failed to adequately explain the nature of 
+the charge, including the recklessness mens rea requirement. Concluding that the 
+Information adequately informed Ms. Zayas of the recklessness requirement and that 
+the admission of facts in Ms. Zayas’s plea agreement satisfied this requirement, the 
+district court denied Ms. Zayas’s motion to withdraw her guilty plea on February 8, 
+2017.  
+In December 2017, Ms. Zayas filed a motion to reconsider the denial of her 
+motion to withdraw her guilty plea on unrelated grounds. At the hearing on the 
+motion to reconsider, the district court sua sponte raised the concern that the court 
+had not sufficiently explained the elements of the charge to Ms. Zayas during the 
+plea colloquy. After receiving additional briefing on this matter, the district court 
+concluded the language in the plea agreement put Ms. Zayas on notice that she was 
+pleading guilty to a crime with a recklessness mens rea and denied Ms. Zayas’s 
+motion to reconsider. On September 28, 2018, the district court entered judgment, 
+sentencing Ms. Zayas to 180 months’ imprisonment. Ms. Zayas timely filed a notice 
+of appeal.  
+B. The Mens Rea Requirement for Child Abuse Under New Mexico Law 
+Ms. Zayas pleaded guilty to child abuse resulting in great bodily harm in 
+violation of 18 U.S.C. §§ 7, 13 and N.M. Stat. Ann. § 30-6-1(D)(1), (D)(2), and (E). 
+Under New Mexico law, “[a]buse of a child consists of a person knowingly, 
+intentionally or negligently, and without justifiable cause, causing or permitting a 
+8 
+ 
+child to be: (1) placed in a situation that may endanger the child’s life or health; [or] 
+(2) tortured, cruelly confined or cruelly punished.” N.M. Stat. Ann. § 30-6-1(D)(1)-
+(2). “Negligently” in this context “refers to criminal negligence and means that a 
+person knew or should have known of the danger involved and acted with a reckless 
+disregard for the safety or health of the child.” Id. § 30-6-1(A)(3). 
+At the time Ms. Zayas entered her guilty plea, the New Mexico Supreme Court 
+had interpreted the “knew or should have known” language in § 30-6-1 to “evince[] a 
+legislative intent to use the concept of criminal negligence, not recklessness, as the 
+standard for negligent child abuse.” State v. Schoonmaker, 176 P.3d 1105, 1117 
+(N.M. 2008), overruled by State v. Consaul, 332 P.3d 850 (N.M. 2014). New 
+Mexico’s uniform jury instruction for child abuse included the same “knew or should 
+have known” mens rea requirement: 
+The defendant acted [intentionally] [or] [with reckless disregard] [and 
+without justification]. [To find that _______ (name of defendant) acted 
+with reckless disregard, you must find that _______ (name of defendant) 
+knew or should have known the defendant’s conduct created a 
+substantial and foreseeable risk, the defendant disregarded that risk and 
+the defendant was wholly indifferent to the consequences of the conduct 
+and to the welfare and safety of _______ (name of child)]. 
+ 
+N.M. Uniform Jury Instruction 14–602 (repealed Apr. 3, 2015) (footnotes omitted).  
+Six months after Ms. Zayas entered her guilty plea, but before the court 
+entered judgment on her plea, the New Mexico Supreme Court sua sponte expressed 
+significant concerns about the child abuse jury instruction and the court’s prior 
+interpretation of the mens rea requirement for child abuse. Consaul, 332 P.3d at 855. 
+In State v. Consaul, the New Mexico Supreme Court recognized that the New Mexico 
+9 
+ 
+“Legislature appeared to capture two standards of mens rea in one sentence when it 
+defined ‘negligently’ as meaning ‘that a person knew or should have known of the 
+danger involved and acted with a reckless disregard for the safety or health of the 
+child’” because “the statute refers to both ordinary negligence and criminal 
+recklessness all in a single legislative breath.” Id. at 858 (quoting N.M. Stat. Ann. 
+§ 30-6-1(A)(3)).  
+The New Mexico Supreme Court determined “[t]he Legislature cannot 
+rationally have intended such self-contradiction,” and concluded “the Legislature 
+intended the term ‘reckless disregard’ to prevail when ‘knew or should have known’ 
+conflicts.” Id. The New Mexico Supreme Court reasoned, “The Legislature intended 
+to punish acts done with a reckless state of mind consistent with its objective of 
+punishing morally culpable acts and not mere inadvertence.” Id. at 857. The court 
+noted that recklessness typically “require[s] an actor to consciously disregard a 
+substantial and unjustifiable risk of such a nature and degree that its disregard 
+involves a gross deviation from the standard of conduct that a law-abiding person 
+would observe in the actor’s situation.” Id. at 857–58.  
+As a result, the New Mexico Supreme Court “expressly modif[ied] prior cases, 
+including [its] own, in which courts have held that recklessness is not the culpability 
+required for the crime of negligent child abuse.” Id. at 858. To clarify that the 
+requisite mens rea for child abuse is recklessness, the court relabeled “criminally 
+negligent child abuse” to “‘reckless child abuse’ without any reference to 
+negligence.” Id. at 857. The court also “specifically overrule[d] that portion of 
+10 
+ 
+Schoonmaker in which [it] stated that ‘Section 30-6-1 evinces a legislative intent to 
+use the concept of criminal negligence, not recklessness, as the standard for negligent 
+child abuse.’” Id. at 858 (quoting Schoonmaker, 176 P.3d at 1117). 
+Since Consaul, New Mexico has updated its uniform jury instruction for child 
+abuse resulting in great bodily harm. The instruction no longer includes the statutory 
+language “knew or should have known,” and it now explains the recklessness mens 
+rea requirement: 
+________ (name of defendant) showed a reckless disregard [without 
+justification] for the safety or health of ________ (name of child). To 
+find that ________ (name of defendant) showed a reckless disregard, 
+you must find that _________ (name of defendant)’s conduct was more 
+than merely negligent or careless. Rather, you must find that ________ 
+(name of defendant) [caused] [or] [permitted] a substantial and 
+unjustifiable risk of serious harm to the safety or health of _______ 
+(name of child). A substantial and unjustifiable risk is one that any 
+law-abiding person would recognize under similar circumstances and 
+that would cause any law-abiding person to behave differently than 
+________ (name of defendant) out of concern for the safety or health of 
+_______ (name of child). 
+N.M. Uniform Jury Instruction 14–615 (footnotes omitted). 
+II. 
+DISCUSSION 
+On appeal, Ms. Zayas asserts her guilty plea was not knowing and voluntary 
+because the district court failed to explain adequately the nature of the charge, 
+including the recklessness mens rea requirement.  
+A. Standard of Review 
+We review a district court’s denial of a motion to withdraw a guilty plea for 
+abuse of discretion. United States v. Marceleno, 819 F.3d 1267, 1272 (10th Cir. 
+11 
+ 
+2016). As part of that analysis, we review de novo whether the plea was knowing and 
+voluntary. Id. “Although a motion to withdraw a guilty plea should be freely allowed, 
+we will not reverse a district court’s denial of such a motion unless it acted unjustly 
+or unfairly.” Id. (internal quotation marks omitted). 
+B. Analysis 
+“A defendant may withdraw a plea of guilty . . . after the court accepts the 
+plea, but before it imposes sentence if . . . the defendant can show a fair and just 
+reason for requesting the withdrawal.” Fed. R. Crim. P. 11(d). To determine whether 
+a defendant has met this burden, district courts consider seven factors: “(1) whether 
+the defendant has asserted his innocence, (2) prejudice to the government, (3) delay 
+in filing defendant’s motion, (4) inconvenience to the court, (5) defendant’s 
+assistance of counsel, (6) whether the plea is knowing and voluntary, and (7) waste of 
+judicial resources.” Marceleno, 819 F.3d at 1272 (quotation marks omitted). 
+Although whether the plea is knowing and voluntary is only one of these factors, “[a] 
+guilty plea is void if it is not knowing and voluntary.” United States v. Gigley, 213 
+F.3d 509, 516 (10th Cir. 2000). Accordingly, if we conclude that Ms. Zayas’s guilty 
+plea was not knowing and voluntary, we may grant relief without separately 
+considering the other Marceleno factors. 
+Federal Rule of Criminal Procedure 11 “is designed to assist the district judge 
+in making the constitutionally required determination that a defendant’s plea is truly 
+voluntary.” United States v. Ferrel, 603 F.3d 758, 762 (10th Cir. 2010) (quotation 
+marks omitted). Under Federal Rule of Criminal Procedure 11(b), a district court 
+12 
+ 
+accepting a guilty plea must “inform the defendant of, and determine the defendant 
+understands,” certain information regarding the plea, including “the nature of each 
+charge to which the defendant is pleading.” Fed. R. Crim. P. 11(b)(1)(G). “In most 
+cases, this requires the court to recite the elements of the offense.” Ferrel, 603 F.3d 
+at 762. 
+ 
+The district court expressly acknowledged that it did not recite the elements of 
+the offense as required under Rule 11(b)(1)(G). To establish that a defendant’s guilty 
+plea was not knowing and involuntary because the district court failed to recite the 
+elements of the offense, the defendant must  
+(1) show that the [intent] element was a critical element of [the charge]; 
+(2) overcome the presumption that his attorney explained this element to 
+him at some other time prior to his guilty plea; and (3) demonstrate that, 
+prior to his guilty plea, he did not receive notice of this element from 
+any other source.  
+ 
+Allen v. Mullin, 368 F.3d 1220, 1241 (10th Cir. 2004) (alterations in original) 
+(quotation marks omitted). With respect to the second requirement, this court “will 
+not indulge the presumption unless there is factual basis in the record to support it.” 
+Id. 
+The government concedes that the mens rea element is a critical element of the 
+charged crime. Thus, to determine if Ms. Zayas’s plea was knowing and voluntary, 
+we analyze (1) the presumption that Ms. Zayas’s attorney informed her of the 
+recklessness mens rea requirement, and (2) the availability of information about the 
+mens rea requirement from other sources. 
+13 
+ 
+ The Presumption Ms. Zayas’s Attorney Informed Ms. Zayas of the Mens Rea 
+Requirement 
+The presumption that Ms. Zayas’s attorney informed her of the recklessness 
+mens rea requirement is appropriate only when “there is factual basis in the record to 
+support it.” Allen, 368 F.3d at 1241. The government argues there is a factual basis in 
+the record to support the presumption because Ms. Zayas and her counsel 
+acknowledged in the plea agreement and during the plea colloquy that they had 
+reviewed her possible defenses. The government asserts that a conversation about 
+Ms. Zayas’s possible defenses “would have had to include a discussion of the mens 
+rea to commit the crime.” Gov’t Br. at 17. Because the jury instructions at the time of 
+Ms. Zayas’s guilty plea included language about reckless disregard, the government 
+argues the court can “presume[] that [Ms. Zayas’s attorneys] informed [her] of the 
+reckless-disregard requirement.” Id. The government also points to the recklessness 
+language in the plea agreement’s factual basis and argues that Ms. Zayas’s attorneys 
+“would not have wanted her to make [a recklessness admission] if they had believed 
+the government need only prove negligence.” Id. We are not convinced. 
+At the time Ms. Zayas pleaded guilty, her attorneys had no notice that the 
+government would be required to prove recklessness instead of criminal negligence. 
+The New Mexico Supreme Court had reviewed the language of the child abuse jury 
+instruction and concluded that “the concept of criminal negligence, not recklessness,” 
+provides “the standard for negligent child abuse.” Schoonmaker, 176 P.3d at 1117. 
+After Ms. Zayas entered her guilty plea, the New Mexico Supreme Court overruled 
+14 
+ 
+its precedent and held that the requisite mens rea for child abuse is recklessness. 
+Consaul, 332 P.3d at 857–58. Because the mens rea requirement at the time 
+Ms. Zayas entered her guilty plea was criminal negligence, there is no reason to 
+presume from the record that her attorneys adequately informed her of the 
+recklessness requirement that she consciously disregarded a known risk, rather than 
+the negligence requirement that she should have known of the risk.  
+At most, Ms. Zayas’s attorneys would have informed her of the criminal 
+negligence standard and explained that the government must prove that she “knew or 
+should have known” of a substantial foreseeable risk and disregarded that risk. N.M. 
+Uniform Jury Instruction 14–602 (emphasis added). Her attorneys would have had no 
+reason to object to the reckless disregard language in the plea agreement’s factual 
+basis because it mirrored the reckless disregard language in the child abuse jury 
+instruction. And there is no evidence in the record that Ms. Zayas’s attorneys would 
+have had any reason to predict that the New Mexico Supreme Court would overrule 
+its precedent on the mens rea requirement. Accordingly, there is no factual basis in 
+the record to support a presumption that Ms. Zayas’s attorneys adequately informed 
+her of the recklessness mens rea requirement.  
+ Availability of Information Regarding the Mens Rea Requirement from Any 
+Other Source  
+To prevail, Ms. Zayas must also demonstrate that she did not learn of the 
+recklessness mens rea element from another source. Allen, 368 F.3d at 1241. To 
+determine whether a defendant had notice of the element prior to her plea, this court 
+15 
+ 
+considers the Information, plea agreement, and plea colloquy. See, e.g., Ferrel, 603 
+F.3d at 763–64. We consider each of these items now, concluding that none of them 
+notified Ms. Zayas of the recklessness mens rea element. 
+The Information does just the opposite, charging that Ms. Zayas “did 
+negligently, and without justifiable cause, cause and permit Jane Doe #1, a child, to 
+be placed in a situation that may endanger Jane Doe #1’s life and health, and to be 
+tortured and to be cruelly punished, which resulted in great bodily harm to Jane Doe 
+#1.” ROA, Vol. I at 170 (emphasis added). As the government conceded at oral 
+argument, this language embodies a criminal negligence standard. There is no 
+language in the Information that would have put Ms. Zayas on notice that the 
+government would be required to prove recklessness—that she consciously 
+disregarded a known risk.  
+Turning now to the plea agreement, we conclude it likewise fails to evidence 
+Ms. Zayas’s understanding that recklessness was required. Ms. Zayas admitted: 
+I knew or should have known that my conduct created a substantial and 
+foreseeable risk that my daughter, Annalicia Zayas, would be physically 
+harmed or killed. I disregarded that risk, and I was wholly indifferent to 
+the consequences of the conduct and to the welfare and safety of my 
+daughter, Annalicia Zayas. 
+ 
+ROA Vol. I at 175–76. 
+The government emphasizes the second sentence—that Ms. Zayas disregarded 
+“that risk” and was “wholly indifferent to the consequences of the conduct.” 
+According to the government, this “is the same language discussed and endorsed by 
+the New Mexico Supreme Court in Consaul to define ‘reckless disregard.’” Gov’t Br. 
+16 
+ 
+at 18. The government further argues that the negligence language in the first 
+sentence—that she knew or should have known—“was at most surplusage that did 
+not negate the presence of the recklessness language.” Id. In other words, the 
+government contends that Ms. Zayas agreed she acted both negligently and 
+recklessly. In denying Ms. Zayas’s motion to reconsider, the district court agreed 
+with this reading of the plea agreement: 
+While it is true that the Plea Agreement also contains the 
+confusing “knew or should have known” language that the New Mexico 
+Supreme Court has disavowed, it was supplemental to the remaining 
+language in the Plea Agreement, which clearly indicates a recklessness 
+mens rea and was sufficient to put Ms. Zayas on notice that she was 
+also pleading guilty to acting recklessly.  
+ 
+ROA, Vol. I at 443 (citation omitted); see also ROA, Vol. I at 315 (denying Ms. 
+Zayas’s motion to withdraw her guilty plea and determining “[t]he factual basis to 
+which Ms. Zayas admitted included the recklessness element of the offense”). 
+Again, we disagree. The language in the plea agreement’s factual basis 
+mirrored the language in the pre-Consaul jury instruction. In Consaul, the New 
+Mexico Supreme Court expressly rejected that language as inadequately and 
+confusingly defining “reckless disregard.” See Consaul, 332 P.3d at 856–58. The 
+court clarified that recklessness, not negligence, was the proper mens rea for child 
+abuse, and that recklessness typically “require[s] an actor to consciously disregard a 
+substantial and unjustifiable risk of such a nature and degree that its disregard 
+involves a gross deviation from the standard of conduct that a law-abiding person 
+would observe in the actor’s situation.” Id. at 857–58.  
+17 
+ 
+Like the jury instruction struck down by the New Mexico Supreme Court, the 
+plea agreement indicates that Ms. Zayas “knew or should have known that [her] 
+conduct created a substantial and foreseeable risk that [Annalicia] would be 
+physically harmed or killed.” ROA, Vol. I at 175. As part of the plea agreement, 
+Ms. Zayas admits she “disregarded that risk [and] was wholly indifferent to the 
+consequences of the conduct,” but she does so only for a risk of which she “knew or 
+should have known.” ROA, Vol. I at 175. Ms. Zayas does not admit in the plea 
+agreement that she consciously disregarded such a risk. See ROA, Vol. I at 175. And 
+the conflicting “knew or should have known” language does not notify Ms. Zayas 
+that the government was required to prove she consciously disregarded a risk—
+something she could have done only if she knew of the risk—rather than prove 
+Ms. Zayas disregarded a risk of which she should have known. 
+And nothing in Ms. Zayas’s plea colloquy indicates she received notice of the 
+recklessness mens rea requirement from any other source. To the contrary, she states 
+repeatedly that she should have known of the risk and emphasizes that she did not 
+know of that risk: 
+Because I should have known. I didn’t know. I didn’t know that Anna 
+had rib fractures. I didn’t know that Anna had wrist fractures. I didn’t 
+know that Anna had a skull fracture. . . . 
+But when the language says that I should have known . . . my 
+language used -- I used to say how could I? If I had known, I would 
+have . . . I would have helped my child, I would have seen. I would have 
+-- if I had known . . . things could be different. But I didn’t. But the 
+language says that I should have known because I am her parent. She’s 
+alive. And that -- that -- the -- the gross -- the injuries and how they 
+have -- could have occurred, even if accidental, was still negligent 
+because it wasn’t addressed. . . . 
+18 
+ 
+So -- so I hurt for her. I wish I could have known, but I . . . and I 
+should have known, because I’m her mommy. And so that’s how I’ve 
+been able to -- the language is hard to stomach. It always -- it always 
+was, but I should have known. And I feel bad about that. I feel horrible. 
+ 
+ROA, Vol. I at 212–13 (emphases added). 
+There is nothing in the Information or the plea agreement indicating the 
+government would be required to prove that Ms. Zayas knew rather than should have 
+known of the risk. In fact, at the time of Ms. Zayas’s guilty plea, the government 
+would not have been required to prove more than criminal negligence. The use of 
+“should have known” in Ms. Zayas’s plea agreement and the plea colloquy was not 
+superfluous to the other reckless disregard language; it was an alternative basis for 
+guilt. The should-have-known language in the plea agreement allowed the 
+government to prove negligence when the defendant disregarded a risk of which she 
+should have known. Later developments in New Mexico law make it clear that the 
+should-have-known standard is no longer good law. And Ms. Zayas’s plea colloquy 
+emphatically confirms that she believed the government could prove its case because 
+she should have known of the risk.  
+In sum, the record reflects that Ms. Zayas was not aware of the specific 
+requirements of the recklessness element—that she consciously disregarded a known 
+risk. There is nothing in the Information, plea agreement, or plea colloquy that would 
+support the conclusion that Ms. Zayas received notice of the recklessness mens rea 
+requirement from another source. Indeed, the Information that sets forth the criminal 
+charge to which she pleaded guilty states only a negligence mens rea. Upon this 
+19 
+ 
+record, we conclude Ms. Zayas’s guilty plea was not knowing and voluntary because 
+she was not informed of the elements of the offense to which she pleaded guilty.  
+III. 
+CONCLUSION 
+Because there is no factual basis in the record to support the presumption that 
+Ms. Zayas’s attorneys explained the recklessness mens rea requirement to her, and 
+there is no evidence in the record that she received notice of the recklessness mens 
+rea requirement from any other source, Ms. Zayas’s plea was not knowing and 
+voluntary. Therefore, the district court abused its discretion in denying Ms. Zayas’s 
+motion to withdraw her guilty plea. We VACATE the judgment, REVERSE the 
+district court’s denial of Ms. Zayas’s motion to withdraw her guilty plea, and 
+REMAND for further proceedings consistent with this decision. 
+Entered for the Court 
+ 
+ 
+Carolyn B. McHugh 
+Circuit Judge 

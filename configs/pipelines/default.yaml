@@ -17,10 +17,10 @@ hybrid_retriever:
 
 embedder:
   type: sentence_transformers
-  module: ingestion.embeddings.models.sentence_transformers
+  module: ingestion.embeddings.models.legal_bert
   class: SentenceTransformerEmbedder
   config:
-    model_name: all-MiniLM-L6-v2
+    model_name: nlpaueb/legal-bert-base-uncased
 
 cross_encoder_reranker:
   type: cross_encoder
@@ -56,4 +56,4 @@ cleaner:
 annotator:
   type: page_annotator
   module: ingestion.dataprep.annotators.pipeline
-  class: PageLegalAnnotator
+  class: LegalAnnotator
