@@ -37,8 +37,12 @@ jobs:
     - name: Build and push image
       run: |
         TAG=${{ github.sha }}
-        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG .
-        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
+        docker buildx build \
+          --platform linux/amd64 \
+          --tag $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG \
+          --push \
+          .
+  
 
     - name: Deploy to Container Apps
       run: |
