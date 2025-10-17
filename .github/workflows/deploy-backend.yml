@@ -46,11 +46,11 @@ jobs:
 
     - name: Deploy to Container Apps
       run: |
-        az containerapp update \
-          --name $CONTAINER_APP \
-          --resource-group $RESOURCE_GROUP \
-          --environment $ENVIRONMENT \
-          --image $ACR_LOGIN_SERVER/$IMAGE_NAME:$TAG
+          az containerapp update \
+          --name "$CONTAINER_APP" \
+          --resource-group "$RESOURCE_GROUP" \
+          --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
+    
 
     - name: Show URL
       run: |
