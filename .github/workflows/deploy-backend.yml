@@ -35,6 +35,8 @@ jobs:
         password:     ${{ secrets.ACR_PASSWORD }}
 
     - name: Build and push image
+      env:
+        DOCKER_BUILDKIT: 0
       run: |
         TAG=${{ github.sha }}
         docker build \
