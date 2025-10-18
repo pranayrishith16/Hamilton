@@ -5,18 +5,19 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Global env pulled from GitHub Secrets where appropriate
 env:
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-  ACR_USERNAME:    ${{ secrets.ACR_USERNAME }}
-  ACR_PASSWORD:    ${{ secrets.ACR_PASSWORD }}
   RESOURCE_GROUP:  ${{ secrets.RESOURCE_GROUP }}
-  ENVIRONMENT:     ${{ secrets.ENVIRONMENT }}
   CONTAINER_APP:   ${{ secrets.CONTAINER_APP }}
-  IMAGE_NAME:      veritly-backend
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
+    # Job-level env to avoid malformed tags; no scheme, no trailing slash
+    env:
+      REGISTRY: veritlyacr.azurecr.io
+      IMAGE_NAME: veritly-backend
 
     steps:
     - name: Checkout code
@@ -30,32 +31,41 @@ jobs:
     - name: Log in to ACR
       uses: azure/docker-login@v1
       with:
-        login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+        login-server: ${{ env.REGISTRY }}
         username:     ${{ secrets.ACR_USERNAME }}
         password:     ${{ secrets.ACR_PASSWORD }}
-  
+
     - name: Build and push image
       uses: docker/build-push-action@v3
       with:
         context: .
         push: true
         platforms: linux/amd64
-        tags: veritlyacr.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-  
-  
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Configure registry on Container App (first time or when creds change)
+      run: |
+        az containerapp registry set \
+          --name "$CONTAINER_APP" \
+          --resource-group "$RESOURCE_GROUP" \
+          --server "${{ env.REGISTRY }}" \
+          --username "${{ secrets.ACR_USERNAME }}" \
+          --password "${{ secrets.ACR_PASSWORD }}"
 
     - name: Deploy to Container Apps
       run: |
-          az containerapp update \
+        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        echo "Using image: $IMAGE"
+        az containerapp update \
           --name "$CONTAINER_APP" \
           --resource-group "$RESOURCE_GROUP" \
-          --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
-    
+          --image "$IMAGE"
 
     - name: Show URL
       run: |
         URL=$(az containerapp show \
-          --name $CONTAINER_APP \
-          --resource-group $RESOURCE_GROUP \
+          --name "$CONTAINER_APP" \
+          --resource-group "$RESOURCE_GROUP" \
           --query properties.configuration.ingress.fqdn -o tsv)
-        echo "🚀 App deployed at: https://$URL"
+        echo "App URL: https://$URL"
