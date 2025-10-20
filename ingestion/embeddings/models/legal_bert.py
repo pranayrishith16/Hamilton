@@ -1,4 +1,4 @@
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, models
 from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
@@ -17,14 +17,44 @@ class SentenceTransformerEmbedder:
 
     def _load_model(self):
         try:
-            # SentenceTransformer handles everything internally
+            # Primary attempt: load pre-packaged ST model
             self.model = SentenceTransformer(self.model_name)
-            # Get dimension from a test encoding
-            test_embedding = self.model.encode("test", convert_to_numpy=True)
-            self.dimension = test_embedding.shape[0] if len(test_embedding.shape) == 1 else test_embedding.shape[1]
-        except Exception as e:
-            loguru.logger.error(f"Failed to load model {self.model_name}: {e}")
-            raise
+            # Probe embedding dimension
+            test_emb = self.model.encode("test", convert_to_numpy=True)
+            self.dimension = test_emb.shape[-1]
+            loguru.logger.info(f"Loaded SentenceTransformer wrapper for '{self.model_name}' (dim={self.dimension})")
+            return
+        except Exception as ex_primary:
+            loguru.logger.warning(f"Primary load failed: {ex_primary}")
+
+        # Fallback: manual assembly
+        try:
+            # 1. Load HF tokenizer & model
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            hf_model = AutoModel.from_pretrained(self.model_name)
+
+            # 2. Create a Sentence-Transformers Transformer module
+            transformer_module = models.Transformer(
+                model_name_or_path=self.model_name,
+                tokenizer=tokenizer,
+                model=hf_model
+            )
+
+            # 3. Create mean-pooling module
+            pooling_module = models.Pooling(
+                transformer_module.get_word_embedding_dimension(),
+                pooling_mode_mean_tokens=True,
+                pooling_mode_cls_token=False,
+                pooling_mode_max_tokens=False
+            )
+
+            # 4. Build the SentenceTransformer
+            self.model = SentenceTransformer(modules=[transformer_module, pooling_module])
+            self.dimension = transformer_module.get_word_embedding_dimension()
+            loguru.logger.info(f"Manually built SentenceTransformer for '{self.model_name}' (dim={self.dimension})")
+        except Exception as ex_fallback:
+            loguru.logger.error(f"Fallback assembly failed: {ex_fallback}")
+            raise RuntimeError(f"Could not load or assemble model '{self.model_name}'") from ex_fallback
 
     def encode(self, chunks: List[Union[Chunk, str]], batch_size: int = 8) -> np.ndarray:
         """

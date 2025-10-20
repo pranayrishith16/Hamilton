@@ -4,8 +4,6 @@ from typing import List, Any,Dict, Optional
 from pathlib import Path, PosixPath
 import re
 
-from sympy import marcumq
-
 from ingestion.dataprep.parsers.pdf_parser import RawDoc
 
 @dataclass

@@ -10,14 +10,6 @@ from orchestrator.interfaces import QueryResult
 from orchestrator.registry import registry
 from orchestrator.observability import trace_request, log_metrics
 
-# from orchestrations.mlflow.tracking import (
-#     start_run,
-#     log_param,
-#     log_metric,
-#     log_artifact,
-#     end_run,
-# )
-
 class Pipeline:
     """Main pipeline orchestrator for query processing."""
     
@@ -25,18 +17,9 @@ class Pipeline:
         self.pipeline_name = pipeline_name 
         self.request_id: Optional[str] = None
         self.logger = logger
-        self.artifacts_base = Path("orchestrations") / "artifacts"
         
     def query(self, query: str, k: int = 10, rerank_k: int = 5) -> QueryResult:
         """Process a query through the full pipeline."""
-        self.request_id = str(uuid.uuid4())
-        run_name = f"query_{self.request_id}"
-        run_artifacts = self.artifacts_base / run_name
-        run_artifacts.mkdir(parents=True, exist_ok=True)
-
-        # start_run(run_name, pipeline=self.pipeline_name, query=query, k=k, rerank_k=rerank_k)
-        # log_param("pipeline", self.pipeline_name)
-        # log_param("request_id", self.request_id)
 
         start_time = time.time()
         
@@ -56,13 +39,8 @@ class Pipeline:
                     "metadata": chunk.metadata,
                 }
                 for chunk in chunks
-]
-            retrieved_path = run_artifacts / "retrieved.json"
-            retrieved_path.write_text(json.dumps(sources, indent=2))
-            # log_artifact(str(retrieved_path), artifact_path="retrieved")
+                ]
 
-            # log_metric("retrieval.time_s", retrieval_time)
-            # log_metric("retrieval.count", len(chunks))
             self.logger.info(f"Retrieved {len(chunks)} chunks in {retrieval_time:.3f}s")
             
             # Step 3: Generate answer
@@ -72,11 +50,6 @@ class Pipeline:
             raw_answer = generator.generate(query, chunks)
             t1 = time.time()
             gen_time = t1 - t0
-
-            # Save raw answer artifact
-            answer_path = run_artifacts / "raw_answer.txt"
-            answer_path.write_text(raw_answer)
-            # log_artifact(str(answer_path), artifact_path="raw_answer")
 
             # log_metric("generation.time_s", gen_time)
             self.logger.info(f"Generated answer in {gen_time:.3f}s")
@@ -95,15 +68,6 @@ class Pipeline:
                 
                 # Final metrics
             total_time = time.time() - start_time
-            # log_metric("pipeline.total_time_s", total_time)
-            # log_metric("pipeline.final_chunks", len(chunks))
-
-            # Save final answer artifact
-            # final_path = run_artifacts / "final_answer.txt"
-            # final_path.write_text(verified)
-            # log_artifact(str(final_path), artifact_path="final_answer")
-
-        # end_run()
 
         metadata: Dict[str, Any] = {
             "pipeline": self.pipeline_name,
@@ -127,32 +91,18 @@ class Pipeline:
         - Then yields token deltas without metadata
         - Finally signals completion
         """
-        request_id = str(uuid.uuid4())
-        run_name = f"stream_{request_id}"
-        run_artifacts = self.artifacts_base / run_name
-        run_artifacts.mkdir(parents=True, exist_ok=True)
-
-        # start_run(run_name, pipeline=self.pipeline_name, query=query, k=k, stream=True)
-        # log_param("pipeline", self.pipeline_name)
-        # log_param("request_id", request_id)
 
         # Retrieve
         t0 = time.time()
         retriever = registry.get("hybrid_retriever")
         chunks = retriever.retrieve(query, k=k)
         t1 = time.time()
-        # log_metric("retrieval.time_s", t1 - t0)
-        # log_metric("retrieval.count", len(chunks))
-
 
         # Emit metadata event
         sources = [
             {"id": c.id, "source": c.metadata.get("source"), "snippet": c.content[:200]}
             for c in chunks
         ]
-        # retrieved_path = run_artifacts / "retrieved.json"
-        # retrieved_path.write_text(json.dumps(sources, indent=2))
-        # log_artifact(str(retrieved_path), artifact_path="retrieved")
         yield {"metadata": sources, "choices": [{"delta": {"content": ""}}]}
 
         # Stream generation
