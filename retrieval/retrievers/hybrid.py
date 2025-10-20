@@ -132,7 +132,7 @@ class HybridRetriever(Retriever):
             return results
         
         def _rrf_fusion(self, bm25_cands: List[Chunk], dense_cands: List[Chunk], k: int) -> List[Chunk]:
-        """Reciprocal Rank Fusion - your current method."""
+            """Reciprocal Rank Fusion - your current method."""
         rrf_scores = {}
         
         # Process BM25 candidates
