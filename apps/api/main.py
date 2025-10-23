@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from azure.storage.blob import BlobServiceClient
+
 import uvicorn
 from orchestrator.pipeline import Pipeline
 from orchestrator.registry import registry
@@ -22,6 +24,10 @@ from datetime import datetime
 from loguru import logger
 import faulthandler
 import json
+
+import dotenv
+
+dotenv.load_dotenv()
 
 faulthandler.enable()
 
@@ -99,7 +105,7 @@ last_auto_ingest_time = None
 auto_ingest_in_progress = False
 
 def discover_documents() -> Dict[str, Any]:
-    """Automatically discover documents in predefined directories."""
+    """Depreciated: Automatically discover documents in predefined directories."""
     discovered_files = []
     directories_found = []
     files_by_type = {}
@@ -135,6 +141,49 @@ def discover_documents() -> Dict[str, Any]:
         "oldest_file": oldest_file
     }
 
+def discover_azure_documents() -> Dict[str, Any]:
+    try:
+        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+        container_name = os.getenv("AZURE_CONTAINER_NAME")
+        if not connection_string or not container_name:
+            raise ValueError("Azure Storage credentials not configured")
+
+        client = BlobServiceClient.from_connection_string(connection_string)
+        container_client = client.get_container_client(container_name)
+
+        blob_list = container_client.list_blobs()
+        files = []
+        files_by_type = {}
+        file_times = []
+
+        for blob in blob_list:
+            files.append(blob.name)
+            ext = os.path.splitext(blob.name)[1].lower()
+            files_by_type[ext] = files_by_type.get(ext, 0) + 1
+            # last_modified is datetime, convert to timestamp
+            if blob.last_modified:
+                file_times.append((blob.name, blob.last_modified.timestamp()))
+
+        oldest_file = None
+        latest_file = None
+
+        if file_times:
+            file_times.sort(key=lambda x: x[1])
+            oldest_file = file_times[0][0]
+            latest_file = file_times[-1][0]
+
+        return {
+            "files": files,
+            "directories_found": [container_name],
+            "files_by_type": files_by_type,
+            "latest_file": latest_file,
+            "oldest_file": oldest_file
+        }
+    except Exception as e:
+        # handle or propagate error
+        raise e
+
+
 async def auto_process_documents() -> Dict[str, Any]:
     """Automatically process all discovered documents."""
     global auto_ingest_in_progress, last_auto_ingest_time
@@ -146,27 +195,29 @@ async def auto_process_documents() -> Dict[str, Any]:
         auto_ingest_in_progress = True
         start_time = datetime.now()
 
-        # Perform batch ingestion for the first configured directory
-        base_dir = DOCUMENT_DIRECTORIES[0]
-        ingest_result = ingestion_pipeline.ingest_directory(base_dir)
+        # Call Azure ingestion instead of local directory
+        ingest_result = ingestion_pipeline.ingest_from_azure()
 
         # Extract metrics from batch result
         files_processed = ingest_result.get("files_processed", 0)
+        batches_processed = ingest_result.get("batches_processed", 0)
         total_chunks = ingest_result.get("total_chunks", 0)
-        results = ingest_result.get("results", [])
+        method = ingest_result.get("method", "")
 
         end_time = datetime.now()
         processing_time = (end_time - start_time).total_seconds()
         last_auto_ingest_time = end_time
 
         return {
-            "status": "success",
-            "directories_scanned": DOCUMENT_DIRECTORIES,
+            "status": ingest_result.get("status", "success"),
+            "directories_scanned": [f"azure container: {os.getenv('AZURE_CONTAINER_NAME')}"],
             "files_found": files_processed,
             "files_processed": files_processed,
+            "batches_processed": batches_processed,
             "total_chunks": total_chunks,
+            "method": method,
             "processing_time": processing_time,
-            "results": results
+            "results": ingest_result.get("results", [])
         }
 
     finally:
@@ -184,13 +235,6 @@ async def root():
             "Background processing",
             "Real-time indexing"
         ],
-        "endpoints": {
-            "query": "/query",
-            "auto-ingest": "/auto-ingest", 
-            "discover": "/discover",
-            "health": "/health",
-            "stats": "/stats"
-        },
         "configured_directories": DOCUMENT_DIRECTORIES,
         "supported_formats": [p.replace("*", "") for p in FILE_PATTERNS]
     }
@@ -200,7 +244,7 @@ async def root():
 async def discover_endpoint():
     """Discover documents in configured directories without processing them."""
     try:
-        discovery_result = discover_documents()
+        discovery_result = discover_azure_documents()
         
         return DocumentDiscoveryResponse(
             directories_found=discovery_result["directories_found"],
@@ -334,7 +378,7 @@ async def health_check():
     """Health check endpoint."""
     try:
         # Check if core components are available
-        faiss_retriever = registry.get("faiss_retriever")
+        faiss_retriever = registry.get("qdrant_retriever")
         bm25_retriever = registry.get("bm25_retriever")
         generator = registry.get("generator")
         

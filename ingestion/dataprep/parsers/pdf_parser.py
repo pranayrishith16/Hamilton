@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import pdfplumber
 from pathlib import Path
-import os
+import io
 from loguru import logger
 
 from ingestion.dataprep.parsers.interfaces import Parser
@@ -35,6 +35,37 @@ class FitzPDFParser(Parser):
             metadata={
                 "pages": n_pages,
                 "source": str(path)
+            }
+        )
+    
+    def parse_from_bytes(self, content_bytes: bytes, source_name: str) -> RawDoc:
+        """
+        Parse PDF directly from bytes instead of a file path.
+
+        Args:
+            content_bytes: The raw PDF file content as bytes.
+            source_name: A string representing the source of the content (filename or blob name).
+
+        Returns:
+            RawDoc: Parsed document with text and metadata.
+        """
+        text_parts = []
+        n_pages = 0
+
+        with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
+            n_pages = len(pdf.pages)
+
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                text_parts.append(page_text)
+
+            text = "".join(text_parts)
+
+        return RawDoc(
+            text=text,
+            metadata={
+                "pages": n_pages,
+                "source": str(source_name)
             }
         )
     

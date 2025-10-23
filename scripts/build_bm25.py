@@ -2,7 +2,7 @@
 from orchestrator.registry import registry
 
 # 1) Load your existing chunks from FAISS retriever
-faiss = registry.get("faiss_retriever")
+faiss = registry.get("qdrant_retriever")
 chunks = faiss.chunks
 
 # 2) Build BM25 index
