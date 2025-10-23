@@ -226,6 +226,8 @@ async def auto_process_documents() -> Dict[str, Any]:
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
+    for route in app.routes:
+        print(f"{route.path} [{','.join(route.methods)}]")
     return {
         "message": "Modular RAG API with Auto-Discovery",
         "version": "1.0.0",
