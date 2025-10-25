@@ -13,19 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from azure.storage.blob import BlobServiceClient
-
-import uvicorn
-from orchestrator.pipeline import Pipeline
-from orchestrator.registry import registry
-from ingestion.pipelines.ingestion_pipeline import IngestionPipeline
 from pathlib import Path
-from datetime import datetime
 from loguru import logger
 import faulthandler
 import json
-
 import dotenv
+
+from orchestrator.pipeline import Pipeline
+from orchestrator.registry import registry
 
 dotenv.load_dotenv()
 
@@ -57,171 +52,38 @@ DOCUMENT_DIRECTORIES = [
 
 FILE_PATTERNS = ["*.pdf", "*.txt", "*.docx", "*.md"]
 
-class IngestRequest(BaseModel):
-    file_path: Optional[str] = None
-    directory_path: Optional[str] = None
-    file_pattern: str = "*.pdf"
-
-class IngestResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
-    files_processed: Optional[int] = None
-    total_chunks: Optional[int] = None
-    results: Optional[List[Dict[str, Any]]] = None
-
-class AutoIngestResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
-    directories_scanned: List[str]
-    files_found: int
-    files_processed: int
-    total_chunks: int
-    processing_time: float
-    results: Optional[List[Dict[str, Any]]] = None
-
-class DocumentDiscoveryResponse(BaseModel):
-    directories_found: List[str]
-    total_files: int
-    files_by_type: Dict[str, int]
-    latest_file: Optional[str] = None
-    oldest_file: Optional[str] = None
+# ==================== Request/Response Models ====================
 
 class QueryRequest(BaseModel):
     query: str
     k: int = 10
 
-class QueryResponse(BaseModel):
+class RetrieveRequest(BaseModel):
     query: str
-    answer: str
-    retrieved_chunks: List[Dict[str, Any]]
-    metadata: Dict[str, Any]
+    k: int = 10
+    retriever_type: str = "hybrid"  # "hybrid", "bm25", "qdrant"
 
-# Global instances
+class GenerateRequest(BaseModel):
+    query: str
+    context: List[Dict[str, Any]]  # List of chunks with id, content, metadata
+
+class ConfigUpdateRequest(BaseModel):
+    component_name: str
+    config: Dict[str, Any]
+
+class IndexBuildRequest(BaseModel):
+    chunks: List[Dict[str, Any]]  # chunks with id, content, metadata
+    retriever_type: str = "bm25"  # "bm25" or "qdrant"
+
+# ==================== Global Instances ====================
+
 pipeline = Pipeline()
-ingestion_pipeline = IngestionPipeline()
+
+# ==================== QUERY ENDPOINTS ====================
 
 # Track last processing time to avoid reprocessing
 last_auto_ingest_time = None
 auto_ingest_in_progress = False
-
-def discover_documents() -> Dict[str, Any]:
-    """Depreciated: Automatically discover documents in predefined directories."""
-    discovered_files = []
-    directories_found = []
-    files_by_type = {}
-    
-    for dir_name in DOCUMENT_DIRECTORIES:
-        dir_path = Path(__file__).parent.parent.parent / dir_name
-        if dir_path.exists() and dir_path.is_dir():
-            directories_found.append(dir_name)
-            
-            for pattern in FILE_PATTERNS:
-                files = list(dir_path.rglob(pattern))  # Recursive search
-                for file_path in files:
-                    if file_path.is_file():
-                        discovered_files.append(str(file_path))
-                        ext = file_path.suffix.lower()
-                        files_by_type[ext] = files_by_type.get(ext, 0) + 1
-    
-    # Get file timestamps for latest/oldest
-    latest_file = None
-    oldest_file = None
-    
-    if discovered_files:
-        file_times = [(f, os.path.getmtime(f)) for f in discovered_files]
-        file_times.sort(key=lambda x: x[1])
-        oldest_file = file_times[0][0]
-        latest_file = file_times[-1][0]
-    
-    return {
-        "files": discovered_files,
-        "directories_found": directories_found,
-        "files_by_type": files_by_type,
-        "latest_file": latest_file,
-        "oldest_file": oldest_file
-    }
-
-def discover_azure_documents() -> Dict[str, Any]:
-    try:
-        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-        container_name = os.getenv("AZURE_CONTAINER_NAME")
-        if not connection_string or not container_name:
-            raise ValueError("Azure Storage credentials not configured")
-
-        client = BlobServiceClient.from_connection_string(connection_string)
-        container_client = client.get_container_client(container_name)
-
-        blob_list = container_client.list_blobs()
-        files = []
-        files_by_type = {}
-        file_times = []
-
-        for blob in blob_list:
-            files.append(blob.name)
-            ext = os.path.splitext(blob.name)[1].lower()
-            files_by_type[ext] = files_by_type.get(ext, 0) + 1
-            # last_modified is datetime, convert to timestamp
-            if blob.last_modified:
-                file_times.append((blob.name, blob.last_modified.timestamp()))
-
-        oldest_file = None
-        latest_file = None
-
-        if file_times:
-            file_times.sort(key=lambda x: x[1])
-            oldest_file = file_times[0][0]
-            latest_file = file_times[-1][0]
-
-        return {
-            "files": files,
-            "directories_found": [container_name],
-            "files_by_type": files_by_type,
-            "latest_file": latest_file,
-            "oldest_file": oldest_file
-        }
-    except Exception as e:
-        # handle or propagate error
-        raise e
-
-
-async def auto_process_documents() -> Dict[str, Any]:
-    """Automatically process all discovered documents."""
-    global auto_ingest_in_progress, last_auto_ingest_time
-    
-    if auto_ingest_in_progress:
-        return {"status": "error", "message": "Auto-ingestion already in progress"}
-    
-    try:
-        auto_ingest_in_progress = True
-        start_time = datetime.now()
-
-        # Call Azure ingestion instead of local directory
-        ingest_result = ingestion_pipeline.ingest_from_azure()
-
-        # Extract metrics from batch result
-        files_processed = ingest_result.get("files_processed", 0)
-        batches_processed = ingest_result.get("batches_processed", 0)
-        total_chunks = ingest_result.get("total_chunks", 0)
-        method = ingest_result.get("method", "")
-
-        end_time = datetime.now()
-        processing_time = (end_time - start_time).total_seconds()
-        last_auto_ingest_time = end_time
-
-        return {
-            "status": ingest_result.get("status", "success"),
-            "directories_scanned": [f"azure container: {os.getenv('AZURE_CONTAINER_NAME')}"],
-            "files_found": files_processed,
-            "files_processed": files_processed,
-            "batches_processed": batches_processed,
-            "total_chunks": total_chunks,
-            "method": method,
-            "processing_time": processing_time,
-            "results": ingest_result.get("results", [])
-        }
-
-    finally:
-        auto_ingest_in_progress = False
 
 @app.get("/")
 async def root():
@@ -242,72 +104,23 @@ async def root():
     }
 
 
-@app.get("/discover", response_model=DocumentDiscoveryResponse)
-async def discover_endpoint():
-    """Discover documents in configured directories without processing them."""
-    try:
-        discovery_result = discover_azure_documents()
-        
-        return DocumentDiscoveryResponse(
-            directories_found=discovery_result["directories_found"],
-            total_files=len(discovery_result["files"]),
-            files_by_type=discovery_result["files_by_type"],
-            latest_file=discovery_result["latest_file"],
-            oldest_file=discovery_result["oldest_file"]
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/auto-ingest", response_model=AutoIngestResponse)
-async def auto_ingest_endpoint(background_tasks: BackgroundTasks):
-    """Automatically discover and ingest all documents from configured directories."""
-    try:
-        # Run the auto-processing
-        result = await auto_process_documents()
-        return AutoIngestResponse(**result)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/auto-ingest-background")
-async def auto_ingest_background_endpoint(background_tasks: BackgroundTasks):
-    """Start auto-ingestion as a background task."""
-    if auto_ingest_in_progress:
-        return {"status": "info", "message": "Auto-ingestion already in progress"}
-    
-    background_tasks.add_task(auto_process_documents)
-    return {"status": "started", "message": "Auto-ingestion started in background"}
-
-@app.get("/ingest-status")
-async def get_ingest_status():
-    """Get the current status of auto-ingestion."""
-    return {
-        "in_progress": auto_ingest_in_progress,
-        "last_run": last_auto_ingest_time.isoformat() if last_auto_ingest_time else None,
-        "configured_directories": DOCUMENT_DIRECTORIES,
-        "supported_patterns": FILE_PATTERNS
-    }
-
-@app.post("/query",response_model=QueryResponse)
+@app.post("/query")
 async def query_endpoint(request:QueryRequest):
-    """Query the RAG system"""
+    """
+    Full pipeline query (retrieve + generate).
+    Uses: pipeline.query() -> hybrid_retriever.retrieve() -> generator.generate()
+    """
     try:
-        # Delegate to the pipeline instead of manual retrieval/generation
         result = pipeline.query(request.query, k=request.k)
-
-        # Build response from QueryResult
-        chunks_dict = [
-            {"id": c.id, "content": c.content, "metadata": c.metadata}
-            for c in result.retrieved_chunks
-        ]
-
-        return QueryResponse(
-            query=result.query,
-            answer=result.answer,
-            retrieved_chunks=chunks_dict,
-            metadata=result.metadata,
-        )
+        return {
+            "query": result.query,
+            "answer": result.answer,
+            "retrieved_chunks": [
+                {"id": c.id, "content": c.content, "metadata": c.metadata}
+                for c in result.retrieved_chunks
+            ],
+            "metadata": result.metadata
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -315,26 +128,20 @@ async def query_endpoint(request:QueryRequest):
 @app.post("/query/stream")
 async def query_stream(request: Request):  # Use Request instead of Pydantic model
     """
-    Streams incremental answer tokens as SSE.
+    Streaming query endpoint.
+    Uses: pipeline.query_stream() -> generator.stream_generate()
     """
     try:
-        # Manually parse the request body
         body = await request.json()
         query = body.get("query", "")
         k = body.get("k", 5)
-        
         if not query:
             raise ValueError("Query is required")
-            
     except Exception as exc:
-        # Capture the exception message in the outer scope
         error_message = str(exc)
-        
         async def error_generator():
-            payload = {"error": f"Invalid request: {error_message}"}
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield f"data: {json.dumps({'error': f'Invalid request: {error_message}'})}\n\n"
             yield "data: [DONE]\n\n"
-        
         return StreamingResponse(
             error_generator(),
             media_type="text/event-stream",
@@ -342,115 +149,297 @@ async def query_stream(request: Request):  # Use Request instead of Pydantic mod
         )
 
     def event_generator():
-
         yield ": ping\n\n"
         try:
-            # Call your pipeline
-            # 2) Stream each chunk from pipeline
             for chunk_dict in pipeline.query_stream(query, k=k):
-                # chunk_dict should now include both:
-                #   choices[0].delta.content AND metadata: {source,page}
-                sse = json.dumps(chunk_dict)
-                yield f"data: {sse}\n\n"
-
-            # 3) Signal done
+                yield f"data: {json.dumps(chunk_dict)}\n\n"
             yield "data: [DONE]\n\n"
-            
         except Exception as e:
             logger.error(f"Streaming error: {e}")
-            error_chunk = {
-                "choices": [{"delta": {"content": ""}}],
-                "error": str(e)
-            }
-            yield f"data: {json.dumps(error_chunk)}\n\n"
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(
-        event_generator(), 
+        event_generator(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control":"no-cache",
-            "X-Accel-Buffering":"no" # disable buffering
-        }
-        )
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
+# ==================== RETRIEVAL ENDPOINTS ====================
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
+@app.post("/retrieve")
+async def retrieve_endpoint(request: RetrieveRequest):
+    """
+    Direct retrieval without generation.
+    Uses: bm25_retriever.retrieve() OR qdrant_retriever.retrieve() OR hybrid_retriever.retrieve()
+    """
     try:
-        # Check if core components are available
-        faiss_retriever = registry.get("qdrant_retriever")
-        bm25_retriever = registry.get("bm25_retriever")
+        if request.retriever_type == "bm25":
+            retriever = registry.get("bm25_retriever")
+        elif request.retriever_type == "qdrant":
+            retriever = registry.get("qdrant_retriever")
+        elif request.retriever_type == "hybrid":
+            retriever = registry.get("hybrid_retriever")
+        else:
+            raise ValueError(f"Unknown retriever type: {request.retriever_type}")
+        
+        chunks = retriever.retrieve(request.query, k=request.k)
+        return {
+            "query": request.query,
+            "retriever_type": request.retriever_type,
+            "chunks": [
+                {
+                    "id": c.id,
+                    "content": c.content,
+                    "metadata": c.metadata
+                }
+                for c in chunks
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate")
+async def generate_endpoint(request: GenerateRequest):
+    """
+    Direct generation with provided context (no retrieval).
+    Uses: generator.generate()
+    """
+    try:
+        from ingestion.dataprep.chunkers.base import Chunk
+        
+        # Convert dict chunks to Chunk objects
+        chunks = [
+            Chunk(
+                id=c.get("id", ""),
+                content=c.get("content", ""),
+                metadata=c.get("metadata", {})
+            )
+            for c in request.context
+        ]
+        
         generator = registry.get("generator")
-        
-        # Check document directories
-        available_dirs = [d for d in DOCUMENT_DIRECTORIES if Path(d).exists()]
+        answer = generator.generate(request.query, chunks)
         
         return {
-            "status": "healthy",
-            "components": {
-                "faiss_retriever": type(faiss_retriever).__name__,
-                "bm25_retriever": type(bm25_retriever).__name__,
-                "generator": type(generator).__name__,
-            },
-            "document_directories": {
-                "configured": DOCUMENT_DIRECTORIES,
-                "available": available_dirs,
-                "missing": [d for d in DOCUMENT_DIRECTORIES if d not in available_dirs]
-            },
-            "auto_ingest": {
-                "in_progress": auto_ingest_in_progress,
-                "last_run": last_auto_ingest_time.isoformat() if last_auto_ingest_time else None
-            }
+            "query": request.query,
+            "answer": answer,
+            "chunks_used": len(chunks)
         }
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/stats")
-async def get_stats():
-    """Get system statistics including document discovery stats."""
+# ==================== INDEX MANAGEMENT ENDPOINTS ====================
+
+@app.post("/index/build")
+async def build_index_endpoint(request: IndexBuildRequest):
+    """
+    Build index for BM25 or Qdrant retriever.
+    Uses: bm25_retriever.build_index() OR qdrant_retriever.build_index()
+    """
     try:
-        ingestion_stats = ingestion_pipeline.get_stats()
-        component_stats = registry.list_components()
-        discovery_stats = discover_documents()
+        from ingestion.dataprep.chunkers.base import Chunk
+        
+        chunks = [
+            Chunk(
+                id=c.get("id", ""),
+                content=c.get("content", ""),
+                metadata=c.get("metadata", {})
+            )
+            for c in request.chunks
+        ]
+        
+        if request.retriever_type == "bm25":
+            retriever = registry.get("bm25_retriever")
+        elif request.retriever_type == "qdrant":
+            retriever = registry.get("qdrant_retriever")
+        else:
+            raise ValueError(f"Unknown retriever type: {request.retriever_type}")
+        
+        retriever.build_index(chunks)
         
         return {
-            "ingestion": ingestion_stats,
-            "components": component_stats,
-            "document_discovery": {
-                "total_files_found": len(discovery_stats["files"]),
-                "directories_scanned": discovery_stats["directories_found"],
-                "files_by_type": discovery_stats["files_by_type"],
-                "latest_file": discovery_stats["latest_file"],
-                "oldest_file": discovery_stats["oldest_file"]
-            },
-            "auto_ingest": {
-                "in_progress": auto_ingest_in_progress,
-                "last_run": last_auto_ingest_time.isoformat() if last_auto_ingest_time else None
-            }
+            "status": "success",
+            "retriever_type": request.retriever_type,
+            "chunks_indexed": len(chunks)
         }
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/reload-config")
+@app.get("/index/stats/{retriever_type}")
+async def get_index_stats(retriever_type: str):
+    """
+    Get statistics for a specific retriever.
+    Uses: retriever.get_stats()
+    """
+    try:
+        if retriever_type == "bm25":
+            retriever = registry.get("bm25_retriever")
+        elif retriever_type == "qdrant":
+            retriever = registry.get("qdrant_retriever")
+        elif retriever_type == "hybrid":
+            retriever = registry.get("hybrid_retriever")
+        else:
+            raise ValueError(f"Unknown retriever type: {retriever_type}")
+        
+        return retriever.get_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== CONFIGURATION ENDPOINTS ====================
+
+@app.get("/config")
+async def get_config():
+    """
+    Get all configuration from registry.
+    Uses: registry.config
+    """
+    try:
+        return {
+            "config": registry.config,
+            "components": registry.list_components(),
+            "config_sections": registry.list_config_sections()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/config/{section}")
+async def get_config_section(section: str):
+    """
+    Get specific configuration section.
+    Uses: registry.get_config()
+    """
+    try:
+        return registry.get_config(section)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/config/reload")
 async def reload_config():
-    """Reload system configuration."""
+    """
+    Reload configuration from YAML.
+    Uses: registry.reload_config()
+    """
     try:
         registry.reload_config()
         return {"status": "success", "message": "Configuration reloaded"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Startup event to create directories if they don't exist
-@app.on_event("startup")
-async def startup_event():
-    """Create document directories on startup if they don't exist."""
-    for dir_name in DOCUMENT_DIRECTORIES:
-        dir_path = Path(dir_name)
-        if not dir_path.exists():
-            dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"Created directory: {dir_path}")
+# ==================== COMPONENT ENDPOINTS ====================
+
+@app.get("/components")
+async def list_components():
+    """
+    List all registered components.
+    Uses: registry.list_components()
+    """
+    try:
+        return {
+            "components": registry.list_components(),
+            "config_sections": registry.list_config_sections()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/component/{component_name}/info")
+async def get_component_info(component_name: str):
+    """
+    Get information about a specific component.
+    Supports: generator, bm25_retriever, qdrant_retriever, hybrid_retriever
+    """
+    try:
+        component = registry.get(component_name)
+        
+        # Get component-specific info
+        if hasattr(component, 'get_model_info'):
+            return component.get_model_info()
+        elif hasattr(component, 'get_stats'):
+            return component.get_stats()
+        else:
+            return {
+                "component": component_name,
+                "type": str(type(component)),
+                "info": "No additional info available"
+            }
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+# ==================== RETRIEVER SPECIFIC ENDPOINTS ====================
+
+@app.post("/bm25/clear-cache")
+async def clear_bm25_cache():
+    """
+    Clear BM25 query cache.
+    Uses: bm25_retriever.clear_cache()
+    """
+    try:
+        retriever = registry.get("bm25_retriever")
+        retriever.clear_cache()
+        return {"status": "success", "message": "BM25 cache cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/hybrid/config")
+async def get_hybrid_config():
+    """
+    Get hybrid retriever configuration.
+    Returns k_rrf parameter and sub-retriever stats.
+    """
+    try:
+        hybrid = registry.get("hybrid_retriever")
+        return hybrid.get_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== HEALTH & INFO ENDPOINTS ====================
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Modular RAG API - Full Component Control",
+        "version": "2.0.0",
+        "endpoints": {
+            "query": {
+                "/query": "Full pipeline query (retrieve + generate)",
+                "/query/stream": "Streaming query"
+            },
+            "retrieval": {
+                "/retrieve": "Direct retrieval (bm25/qdrant/hybrid)",
+                "/generate": "Direct generation with context"
+            },
+            "index": {
+                "/index/build": "Build retriever index",
+                "/index/stats/{type}": "Get index statistics"
+            },
+            "config": {
+                "/config": "Get all config",
+                "/config/{section}": "Get specific config section",
+                "/config/reload": "Reload config from YAML"
+            },
+            "components": {
+                "/components": "List all components",
+                "/component/{name}/info": "Get component info"
+            },
+            "specialized": {
+                "/bm25/clear-cache": "Clear BM25 cache",
+                "/hybrid/config": "Get hybrid retriever config"
+            }
+        }
+    }
+
+@app.get("/health")
+async def health_check():
+    try:
+        components = {
+            "qdrant_retriever": registry.get("qdrant_retriever"),
+            "bm25_retriever": registry.get("bm25_retriever"),
+            "hybrid_retriever": registry.get("hybrid_retriever"),
+            "generator": registry.get("generator")
+        }
+        return {
+            "status": "healthy",
+            "components": {name: type(comp).__name__ for name, comp in components.items()}
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
