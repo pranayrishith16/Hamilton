@@ -1,3 +1,8 @@
+---
+layout: default
+title: Hamilton Documentation
+---
+
 # Project Documentation
 
 Auto-generated documentation from Python source code.
