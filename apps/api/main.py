@@ -30,8 +30,14 @@ faulthandler.enable()
 app = FastAPI(
     title="Modular RAG API",
     description="A modular, plug-and-play RAG system",
-    version="1.0.0"
+    version="1.1.0"
 )
+"""
+FastAPI application instance.
+Configured with CORS middleware to allow cross-origin requests from any domain.
+All endpoints are mounted on this app instance.
+Provides auto-generated OpenAPI documentation at /docs and /redoc.
+"""
 
 # Add CORS middleware
 app.add_middleware(
@@ -55,29 +61,62 @@ FILE_PATTERNS = ["*.pdf", "*.txt", "*.docx", "*.md"]
 # ==================== Request/Response Models ====================
 
 class QueryRequest(BaseModel):
+    """
+    Request model for query endpoint.
+    Contains the user's query string and optional k parameter for top-k retrieval.
+    Used in: POST /query and POST /query/stream
+    """
     query: str
     k: int = 10
 
 class RetrieveRequest(BaseModel):
+    """
+    Request model for direct retrieval endpoint.
+    Allows users to specify query, number of results (k), and which retriever to use.
+    Supports: hybrid, bm25, or qdrant retrievers.
+    Used in: POST /retrieve
+    """
     query: str
     k: int = 10
     retriever_type: str = "hybrid"  # "hybrid", "bm25", "qdrant"
 
 class GenerateRequest(BaseModel):
+    """
+    Request model for direct generation endpoint.
+    Takes a query and pre-provided context chunks to generate answer without retrieval.
+    Useful for testing generation independently from retrieval.
+    Used in: POST /generate
+    """
     query: str
     context: List[Dict[str, Any]]  # List of chunks with id, content, metadata
 
 class ConfigUpdateRequest(BaseModel):
+    """
+    Request model for configuration updates.
+    Contains component name and new configuration dictionary.
+    Used in: POST /config/update (if implemented)
+    """
     component_name: str
     config: Dict[str, Any]
 
 class IndexBuildRequest(BaseModel):
+    """
+    Request model for building retriever indexes.
+    Contains list of chunks (with id, content, metadata) and retriever type.
+    Allows building fresh indexes for BM25 or Qdrant.
+    Used in: POST /index/build
+    """
     chunks: List[Dict[str, Any]]  # chunks with id, content, metadata
     retriever_type: str = "bm25"  # "bm25" or "qdrant"
 
 # ==================== Global Instances ====================
 
 pipeline = Pipeline()
+"""
+Global Pipeline instance.
+Main orchestrator for query processing.
+Used by /query and /query/stream endpoints.
+"""
 
 # ==================== QUERY ENDPOINTS ====================
 
@@ -87,7 +126,12 @@ auto_ingest_in_progress = False
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information."""
+    """
+    Root endpoint that returns API information and available endpoints.
+    Displays all features, configured directories, and supported file formats.
+    Useful for documentation and debugging.
+    Returns: Dictionary with API info, version, features, and configuration.
+    """
     for route in app.routes:
         print(f"{route.path} [{','.join(route.methods)}]")
     return {
@@ -107,8 +151,15 @@ async def root():
 @app.post("/query")
 async def query_endpoint(request:QueryRequest):
     """
-    Full pipeline query (retrieve + generate).
-    Uses: pipeline.query() -> hybrid_retriever.retrieve() -> generator.generate()
+    Full pipeline query endpoint.
+    Accepts a user query and performs end-to-end RAG:
+    1. Retrieves top-k relevant chunks using hybrid retriever
+    2. Generates answer using retrieved context
+    3. Returns answer with retrieved chunks and metadata
+    
+    Dependencies: pipeline.query() -> hybrid_retriever.retrieve() -> generator.generate()
+    Status Codes: 200 (success), 500 (error)
+    Returns: query, answer, retrieved_chunks[], metadata
     """
     try:
         result = pipeline.query(request.query, k=request.k)
@@ -128,8 +179,14 @@ async def query_endpoint(request:QueryRequest):
 @app.post("/query/stream")
 async def query_stream(request: Request):  # Use Request instead of Pydantic model
     """
-    Streaming query endpoint.
-    Uses: pipeline.query_stream() -> generator.stream_generate()
+    Streaming query endpoint using Server-Sent Events (SSE).
+    Returns answer tokens incrementally as they are generated.
+    Useful for real-time UI updates and better user experience.
+    
+    Dependencies: pipeline.query_stream() -> generator.stream_generate()
+    Media Type: text/event-stream
+    Handles: Error handling for invalid requests and streaming errors
+    Returns: Streamed JSON chunks with [DONE] signal at end
     """
     try:
         body = await request.json()
@@ -170,8 +227,14 @@ async def query_stream(request: Request):  # Use Request instead of Pydantic mod
 @app.post("/retrieve")
 async def retrieve_endpoint(request: RetrieveRequest):
     """
-    Direct retrieval without generation.
-    Uses: bm25_retriever.retrieve() OR qdrant_retriever.retrieve() OR hybrid_retriever.retrieve()
+    Direct retrieval endpoint without generation.
+    Retrieves top-k chunks using specified retriever type.
+    Allows testing retrieval independently from generation.
+    Supports three retriever types: bm25 (keyword), qdrant (semantic), hybrid (both).
+    
+    Dependencies: bm25_retriever.retrieve() OR qdrant_retriever.retrieve() OR hybrid_retriever.retrieve()
+    Status Codes: 200 (success), 500 (invalid retriever type or error)
+    Returns: query, retriever_type, chunks[] with id, content, metadata
     """
     try:
         if request.retriever_type == "bm25":
@@ -202,8 +265,14 @@ async def retrieve_endpoint(request: RetrieveRequest):
 @app.post("/generate")
 async def generate_endpoint(request: GenerateRequest):
     """
-    Direct generation with provided context (no retrieval).
-    Uses: generator.generate()
+    Direct generation endpoint with user-provided context.
+    Skips retrieval and generates answer using provided chunks.
+    Useful for testing generation quality, fine-tuning prompts, or custom workflows.
+    
+    Dependencies: generator.generate()
+    Input: query string and list of context chunks
+    Status Codes: 200 (success), 500 (error)
+    Returns: query, answer, chunks_used count
     """
     try:
         from ingestion.dataprep.chunkers.base import Chunk
@@ -234,8 +303,14 @@ async def generate_endpoint(request: GenerateRequest):
 @app.post("/index/build")
 async def build_index_endpoint(request: IndexBuildRequest):
     """
-    Build index for BM25 or Qdrant retriever.
-    Uses: bm25_retriever.build_index() OR qdrant_retriever.build_index()
+    Build or rebuild indexes for retrieval systems.
+    Creates BM25 or Qdrant indexes from provided chunks.
+    Used when adding new documents or updating retrieval indexes.
+    
+    Dependencies: bm25_retriever.build_index() OR qdrant_retriever.build_index()
+    Input: List of chunks and retriever type
+    Status Codes: 200 (success), 500 (invalid type or error)
+    Returns: status, retriever_type, chunks_indexed count
     """
     try:
         from ingestion.dataprep.chunkers.base import Chunk
@@ -269,8 +344,14 @@ async def build_index_endpoint(request: IndexBuildRequest):
 @app.get("/index/stats/{retriever_type}")
 async def get_index_stats(retriever_type: str):
     """
-    Get statistics for a specific retriever.
-    Uses: retriever.get_stats()
+    Get statistics about a specific retriever's index.
+    Returns number of indexed chunks, index size, and other metrics.
+    Useful for monitoring index health and size.
+    
+    Dependencies: retriever.get_stats()
+    Supports: bm25, qdrant, hybrid
+    Status Codes: 200 (success), 500 (invalid type or error)
+    Returns: Index statistics dictionary (varies by retriever)
     """
     try:
         if retriever_type == "bm25":
@@ -291,8 +372,13 @@ async def get_index_stats(retriever_type: str):
 @app.get("/config")
 async def get_config():
     """
-    Get all configuration from registry.
-    Uses: registry.config
+    Get all system configuration.
+    Returns complete configuration, registered components, and config sections.
+    Useful for understanding system setup and component dependencies.
+    
+    Dependencies: registry.config, registry.list_components(), registry.list_config_sections()
+    Status Codes: 200 (success), 500 (error)
+    Returns: config dict, components list, config_sections list
     """
     try:
         return {
@@ -307,7 +393,11 @@ async def get_config():
 async def get_config_section(section: str):
     """
     Get specific configuration section.
-    Uses: registry.get_config()
+    Retrieves configuration for a particular component or section.
+    
+    Dependencies: registry.get_config(section)
+    Status Codes: 200 (success), 404 (section not found), 500 (error)
+    Returns: Configuration dictionary for specified section
     """
     try:
         return registry.get_config(section)
@@ -317,8 +407,13 @@ async def get_config_section(section: str):
 @app.post("/config/reload")
 async def reload_config():
     """
-    Reload configuration from YAML.
-    Uses: registry.reload_config()
+    Reload configuration from YAML file.
+    Refreshes all settings without restarting the service.
+    Useful for applying configuration changes dynamically.
+    
+    Dependencies: registry.reload_config()
+    Status Codes: 200 (success), 500 (error)
+    Returns: status message and confirmation
     """
     try:
         registry.reload_config()
@@ -331,8 +426,13 @@ async def reload_config():
 @app.get("/components")
 async def list_components():
     """
-    List all registered components.
-    Uses: registry.list_components()
+    List all registered components in the system.
+    Returns component names and configuration sections.
+    Useful for understanding system architecture.
+    
+    Dependencies: registry.list_components(), registry.list_config_sections()
+    Status Codes: 200 (success), 500 (error)
+    Returns: components list, config_sections list
     """
     try:
         return {
@@ -345,8 +445,13 @@ async def list_components():
 @app.get("/component/{component_name}/info")
 async def get_component_info(component_name: str):
     """
-    Get information about a specific component.
+    Get detailed information about a specific component.
+    Returns component metadata, model info, or statistics.
     Supports: generator, bm25_retriever, qdrant_retriever, hybrid_retriever
+    
+    Dependencies: registry.get(component_name) -> component.get_model_info() OR get_stats()
+    Status Codes: 200 (success), 404 (component not found), 500 (error)
+    Returns: Component-specific information dictionary
     """
     try:
         component = registry.get(component_name)
@@ -370,8 +475,13 @@ async def get_component_info(component_name: str):
 @app.post("/bm25/clear-cache")
 async def clear_bm25_cache():
     """
-    Clear BM25 query cache.
-    Uses: bm25_retriever.clear_cache()
+    Clear BM25 retriever's query tokenization cache.
+    Frees memory used by cached tokenized queries.
+    Useful when system memory is constrained.
+    
+    Dependencies: bm25_retriever.clear_cache()
+    Status Codes: 200 (success), 500 (error)
+    Returns: status message
     """
     try:
         retriever = registry.get("bm25_retriever")
@@ -383,8 +493,13 @@ async def clear_bm25_cache():
 @app.get("/hybrid/config")
 async def get_hybrid_config():
     """
-    Get hybrid retriever configuration.
-    Returns k_rrf parameter and sub-retriever stats.
+    Get hybrid retriever configuration and statistics.
+    Returns RRF (Reciprocal Rank Fusion) parameter and sub-retriever stats.
+    Useful for understanding hybrid retriever setup.
+    
+    Dependencies: hybrid_retriever.get_stats()
+    Status Codes: 200 (success), 500 (error)
+    Returns: hybrid retriever stats including k_rrf and sub-retriever metrics
     """
     try:
         hybrid = registry.get("hybrid_retriever")
@@ -394,42 +509,18 @@ async def get_hybrid_config():
 
 # ==================== HEALTH & INFO ENDPOINTS ====================
 
-@app.get("/")
-async def root():
-    return {
-        "message": "Modular RAG API - Full Component Control",
-        "version": "2.0.0",
-        "endpoints": {
-            "query": {
-                "/query": "Full pipeline query (retrieve + generate)",
-                "/query/stream": "Streaming query"
-            },
-            "retrieval": {
-                "/retrieve": "Direct retrieval (bm25/qdrant/hybrid)",
-                "/generate": "Direct generation with context"
-            },
-            "index": {
-                "/index/build": "Build retriever index",
-                "/index/stats/{type}": "Get index statistics"
-            },
-            "config": {
-                "/config": "Get all config",
-                "/config/{section}": "Get specific config section",
-                "/config/reload": "Reload config from YAML"
-            },
-            "components": {
-                "/components": "List all components",
-                "/component/{name}/info": "Get component info"
-            },
-            "specialized": {
-                "/bm25/clear-cache": "Clear BM25 cache",
-                "/hybrid/config": "Get hybrid retriever config"
-            }
-        }
-    }
-
 @app.get("/health")
 async def health_check():
+    """
+    Health check endpoint for monitoring system status.
+    Verifies that all core components are initialized and accessible.
+    Used by load balancers and monitoring systems.
+    
+    Dependencies: registry.get() for all core components
+    Status Codes: Always 200 (check 'status' field: 'healthy' or 'unhealthy')
+    Returns: status (healthy/unhealthy), component types
+    """
+
     try:
         components = {
             "qdrant_retriever": registry.get("qdrant_retriever"),

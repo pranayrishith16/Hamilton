@@ -2,7 +2,7 @@
 
 Auto-generated documentation from Python source code.
 
-**Generated:** 2025-10-25 14:55:01
+**Generated:** 2025-10-26 11:06:03
 
 ## Table of Contents
 
@@ -47,31 +47,54 @@ Auto-generated documentation from Python source code.
 
 **Inherits from:** `BaseModel`
 
-*No description provided.*
+**Description:**
+
+Request model for query endpoint.
+Contains the user's query string and optional k parameter for top-k retrieval.
+Used in: POST /query and POST /query/stream
 
 ### Class: `RetrieveRequest`
 
 **Inherits from:** `BaseModel`
 
-*No description provided.*
+**Description:**
+
+Request model for direct retrieval endpoint.
+Allows users to specify query, number of results (k), and which retriever to use.
+Supports: hybrid, bm25, or qdrant retrievers.
+Used in: POST /retrieve
 
 ### Class: `GenerateRequest`
 
 **Inherits from:** `BaseModel`
 
-*No description provided.*
+**Description:**
+
+Request model for direct generation endpoint.
+Takes a query and pre-provided context chunks to generate answer without retrieval.
+Useful for testing generation independently from retrieval.
+Used in: POST /generate
 
 ### Class: `ConfigUpdateRequest`
 
 **Inherits from:** `BaseModel`
 
-*No description provided.*
+**Description:**
+
+Request model for configuration updates.
+Contains component name and new configuration dictionary.
+Used in: POST /config/update (if implemented)
 
 ### Class: `IndexBuildRequest`
 
 **Inherits from:** `BaseModel`
 
-*No description provided.*
+**Description:**
+
+Request model for building retriever indexes.
+Contains list of chunks (with id, content, metadata) and retriever type.
+Allows building fresh indexes for BM25 or Qdrant.
+Used in: POST /index/build
 
 
 ---
