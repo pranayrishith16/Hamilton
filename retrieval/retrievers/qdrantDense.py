@@ -14,7 +14,7 @@ class QdrantDenseRetriever(Retriever):
     
     def __init__(
             self, 
-            collection_name='legal-docs',
+            collection_name='legal_docs',
             metric: str = "cosine",
             qdrant_url: Optional[str] = None,
             qdrant_api_key: Optional[str] = None):
@@ -37,9 +37,9 @@ class QdrantDenseRetriever(Retriever):
         self.qdrant_api_key = qdrant_api_key or os.getenv("QDRANT_API_KEY")
 
         if self.qdrant_api_key:
-            self.client = QdrantClient(url=self.qdrant_url, api_key=self.qdrant_api_key)
+            self.client = QdrantClient(url=self.qdrant_url, api_key=self.qdrant_api_key,port=443)
         else:
-            self.client = QdrantClient(url=self.qdrant_url)
+            self.client = QdrantClient(url=self.qdrant_url,port=443)
 
         self.logger.info(f"Connected to Qdrant at {self.qdrant_url}")
 
@@ -71,16 +71,15 @@ class QdrantDenseRetriever(Retriever):
             # Ensure float32 and flatten to 1D list
             if query_embedding.dtype != np.float32:
                 query_embedding = query_embedding.astype(np.float32)
-            query_vector = query_embedding.tolist()
+            query_vector = query_embedding[0].tolist()
             
             # Search Qdrant
             try:
-                search_results = self.client.search(
+                search_results = self.client.query_points(
                     collection_name=self.collection_name,
-                    query_vector=query_vector,
-                    limit=k,
-                    with_payload=True
-                )
+                    query=query_vector,
+                    limit=k
+                ).points
 
                 # Build results from Qdrant points
                 results = []
@@ -122,7 +121,7 @@ class QdrantDenseRetriever(Retriever):
                 embeddings = embeddings.astype(np.float32)
 
             # Get embedding dimension
-            self.dimension = embeddings.shape
+            self.dimension = embeddings.shape[1]
 
             # Create or recreate collection
             try:

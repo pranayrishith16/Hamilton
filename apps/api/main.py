@@ -6,9 +6,11 @@ Validates auth, loads active flavor, and delegates to orchestrator/pipeline.
 """
 
 import os
+
+from fastapi.routing import APIRoute
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -21,6 +23,25 @@ import dotenv
 
 from orchestrator.pipeline import Pipeline
 from orchestrator.registry import registry
+from auth.auth_routes import router as auth_router
+from auth.auth_manager import auth_manager
+from auth.security_middleware import (
+    SecurityHeadersMiddleware,
+    HTTPSEnforcementMiddleware,
+    TokenBlacklistMiddleware,
+    SecurityLoggingMiddleware,
+    RateLimitMiddleware,
+    AuditLoggingMiddleware
+)
+
+from auth.rbac_dependencies import (
+    verify_jwt_token,
+    require_admin,
+    require_viewer,
+    require_editor,
+    require_permission,
+    rate_limit_check
+)
 
 dotenv.load_dotenv()
 
@@ -39,6 +60,18 @@ All endpoints are mounted on this app instance.
 Provides auto-generated OpenAPI documentation at /docs and /redoc.
 """
 
+# ==================== SECURITY MIDDLEWARE STACK ====================
+
+# Add security middleware in order of execution
+app.add_middleware(AuditLoggingMiddleware)
+app.add_middleware(SecurityLoggingMiddleware)
+app.add_middleware(TokenBlacklistMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(HTTPSEnforcementMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# ==================== CORS MIDDLEWARE ====================
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -48,15 +81,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration for document discovery
-DOCUMENT_DIRECTORIES = [
-    "data/",
-    # "documents/", 
-    # "uploads/",
-    # "content/"
-]
+# ==================== ROUTERS ====================
 
-FILE_PATTERNS = ["*.pdf", "*.txt", "*.docx", "*.md"]
+app.include_router(auth_router)
 
 # ==================== Request/Response Models ====================
 
@@ -118,51 +145,99 @@ Main orchestrator for query processing.
 Used by /query and /query/stream endpoints.
 """
 
-# ==================== QUERY ENDPOINTS ====================
+# ==================== AUTH DEPENDENCY ====================
 
-# Track last processing time to avoid reprocessing
-last_auto_ingest_time = None
-auto_ingest_in_progress = False
+def verify_jwt(authorization: str = Header(None)) -> dict:
+    """
+    Dependency to verify JWT token.
+    Add this to any route that needs authentication.
+    Returns user payload with: sub (user_id), email, tier, exp
+    """
+    if not authorization or "Bearer " not in authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization token")
+    
+    token = authorization.replace("Bearer ", "").strip()
+    payload = auth_manager.verify_token(token)
+    
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    return payload
+
+
+# ==================== QUERY ENDPOINTS ====================
 
 @app.get("/")
 async def root():
     """
     Root endpoint that returns API information and available endpoints.
-    Displays all features, configured directories, and supported file formats.
-    Useful for documentation and debugging.
-    Returns: Dictionary with API info, version, features, and configuration.
+    Displays features and all available routes for self-documentation/debugging.
     """
-    for route in app.routes:
-        print(f"{route.path} [{','.join(route.methods)}]")
+    from fastapi.routing import APIRoute
+    
+    routes = [
+        {
+            "path": route.path,
+            "name": route.name,
+            "methods": list(route.methods - {"HEAD", "OPTIONS"})
+        }
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]
+    
     return {
-        "message": "Modular RAG API with Auto-Discovery",
-        "version": "1.0.0",
-        "features": [
-            "Automatic document discovery",
-            "Multi-directory scanning",
-            "Background processing",
-            "Real-time indexing"
+        "message": "Veritly AI - Secure RAG API",
+        "version": "2.0.0",
+        "security_features": [
+            "Email verification",
+            "Password reset with tokens",
+            "Refresh token rotation",
+            "Role-based access control",
+            "HTTPS enforcement",
+            "Security headers (CSP, HSTS, etc.)",
+            "Token blacklisting",
+            "Audit logging",
+            "Rate limiting",
+            "Azure Key Vault integration"
         ],
-        "configured_directories": DOCUMENT_DIRECTORIES,
-        "supported_formats": [p.replace("*", "") for p in FILE_PATTERNS]
+        "routes": routes
     }
 
+# ==================== QUERY ENDPOINTS (PROTECTED) ====================
 
 @app.post("/query")
-async def query_endpoint(request:QueryRequest):
+async def query_endpoint(
+    request: QueryRequest,
+    user: dict = Depends(rate_limit_check)
+):
     """
     Full pipeline query endpoint.
-    Accepts a user query and performs end-to-end RAG:
-    1. Retrieves top-k relevant chunks using hybrid retriever
-    2. Generates answer using retrieved context
-    3. Returns answer with retrieved chunks and metadata
     
-    Dependencies: pipeline.query() -> hybrid_retriever.retrieve() -> generator.generate()
-    Status Codes: 200 (success), 500 (error)
-    Returns: query, answer, retrieved_chunks[], metadata
+    Requires: Authenticated user with verified email
+    Rate limited based on subscription tier
     """
     try:
+        # Check rate limit
+        if not auth_manager.check_query_limit(user["sub"]):
+            raise HTTPException(
+                status_code=429,
+                detail="Daily query limit exceeded"
+            )
+        
         result = pipeline.query(request.query, k=request.k)
+        
+        # Log successful query
+        from auth.models import get_db_session, QueryLog
+        session = get_db_session()
+        query_log = QueryLog(
+            user_id=user["sub"],
+            query_text=request.query,
+            status="success"
+        )
+        session.add(query_log)
+        session.commit()
+        session.close()
+        
         return {
             "query": result.query,
             "answer": result.answer,
@@ -170,62 +245,71 @@ async def query_endpoint(request:QueryRequest):
                 {"id": c.id, "content": c.content, "metadata": c.metadata}
                 for c in result.retrieved_chunks
             ],
-            "metadata": result.metadata
+            "metadata": result.metadata,
+            "user_tier": user["tier"],
+            "user_id": user["sub"]
         }
+    
     except Exception as e:
+        logger.error(f"Query error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 @app.post("/query/stream")
-async def query_stream(request: Request):  # Use Request instead of Pydantic model
+async def query_stream(request: Request, user: dict = Depends(rate_limit_check)):
     """
-    Streaming query endpoint using Server-Sent Events (SSE).
-    Returns answer tokens incrementally as they are generated.
-    Useful for real-time UI updates and better user experience.
+    Streaming query endpoint using Server-Sent Events.
     
-    Dependencies: pipeline.query_stream() -> generator.stream_generate()
-    Media Type: text/event-stream
-    Handles: Error handling for invalid requests and streaming errors
-    Returns: Streamed JSON chunks with [DONE] signal at end
+    Requires: Authenticated user
+    Returns: Streamed answer tokens
     """
     try:
         body = await request.json()
         query = body.get("query", "")
         k = body.get("k", 5)
+        
         if not query:
             raise ValueError("Query is required")
+        
+        # Check rate limit
+        if not auth_manager.check_query_limit(user["sub"]):
+            raise HTTPException(status_code=429, detail="Daily query limit exceeded")
+    
     except Exception as exc:
-        error_message = str(exc)
         async def error_generator():
-            yield f"data: {json.dumps({'error': f'Invalid request: {error_message}'})}\n\n"
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
             yield "data: [DONE]\n\n"
+        
         return StreamingResponse(
             error_generator(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
         )
-
+    
     def event_generator():
         yield ": ping\n\n"
         try:
             for chunk_dict in pipeline.query_stream(query, k=k):
                 yield f"data: {json.dumps(chunk_dict)}\n\n"
+            
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Streaming error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
             yield "data: [DONE]\n\n"
-
+    
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
 
+
 # ==================== RETRIEVAL ENDPOINTS ====================
 
 @app.post("/retrieve")
-async def retrieve_endpoint(request: RetrieveRequest):
+async def retrieve_endpoint(request: RetrieveRequest, user: dict = Depends(verify_jwt)):
     """
     Direct retrieval endpoint without generation.
     Retrieves top-k chunks using specified retriever type.
@@ -237,6 +321,10 @@ async def retrieve_endpoint(request: RetrieveRequest):
     Returns: query, retriever_type, chunks[] with id, content, metadata
     """
     try:
+        # Optional: Check rate limit
+        if not auth_manager.check_query_limit(user["sub"]):
+            raise HTTPException(status_code=429, detail="Query limit exceeded")
+        
         if request.retriever_type == "bm25":
             retriever = registry.get("bm25_retriever")
         elif request.retriever_type == "qdrant":
@@ -247,15 +335,15 @@ async def retrieve_endpoint(request: RetrieveRequest):
             raise ValueError(f"Unknown retriever type: {request.retriever_type}")
         
         chunks = retriever.retrieve(request.query, k=request.k)
+        auth_manager.log_query(user["sub"], request.query, "success")
+        
         return {
             "query": request.query,
             "retriever_type": request.retriever_type,
+            "user_id": user["sub"],
+            "user_tier": user["tier"],
             "chunks": [
-                {
-                    "id": c.id,
-                    "content": c.content,
-                    "metadata": c.metadata
-                }
+                {"id": c.id, "content": c.content, "metadata": c.metadata}
                 for c in chunks
             ]
         }
@@ -263,21 +351,14 @@ async def retrieve_endpoint(request: RetrieveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate")
-async def generate_endpoint(request: GenerateRequest):
+async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verify_jwt)):
     """
-    Direct generation endpoint with user-provided context.
-    Skips retrieval and generates answer using provided chunks.
-    Useful for testing generation quality, fine-tuning prompts, or custom workflows.
-    
-    Dependencies: generator.generate()
-    Input: query string and list of context chunks
-    Status Codes: 200 (success), 500 (error)
-    Returns: query, answer, chunks_used count
+    PROTECTED: Direct generation endpoint.
+    Generates answer from user-provided context.
     """
     try:
         from ingestion.dataprep.chunkers.base import Chunk
         
-        # Convert dict chunks to Chunk objects
         chunks = [
             Chunk(
                 id=c.get("id", ""),
@@ -289,57 +370,48 @@ async def generate_endpoint(request: GenerateRequest):
         
         generator = registry.get("generator")
         answer = generator.generate(request.query, chunks)
+        auth_manager.log_query(user["sub"], request.query, "success")
         
         return {
             "query": request.query,
             "answer": answer,
-            "chunks_used": len(chunks)
+            "chunks_used": len(chunks),
+            "user_id": user["sub"]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== INDEX MANAGEMENT ENDPOINTS ====================
 
-@app.post("/index/build")
-async def build_index_endpoint(request: IndexBuildRequest):
-    """
-    Build or rebuild indexes for retrieval systems.
-    Creates BM25 or Qdrant indexes from provided chunks.
-    Used when adding new documents or updating retrieval indexes.
+# @app.post("/index/build")
+# async def build_index_endpoint(request: IndexBuildRequest, user: dict = Depends(verify_jwt)):
+#     """
+#     PROTECTED + ADMIN ONLY: Build/rebuild retriever indexes.
+#     """
+#     # Check admin role
+#     if user.get("tier") != "admin":
+#         raise HTTPException(status_code=403, detail="Admin access required")
     
-    Dependencies: bm25_retriever.build_index() OR qdrant_retriever.build_index()
-    Input: List of chunks and retriever type
-    Status Codes: 200 (success), 500 (invalid type or error)
-    Returns: status, retriever_type, chunks_indexed count
-    """
-    try:
-        from ingestion.dataprep.chunkers.base import Chunk
+#     try:
         
-        chunks = [
-            Chunk(
-                id=c.get("id", ""),
-                content=c.get("content", ""),
-                metadata=c.get("metadata", {})
-            )
-            for c in request.chunks
-        ]
+#         if request.retriever_type == "bm25":
+#             retriever = registry.get("bm25_retriever")
+#         elif request.retriever_type == "qdrant":
+#             retriever = registry.get("qdrant_retriever")
+#         else:
+#             raise ValueError(f"Unknown retriever type: {request.retriever_type}")
         
-        if request.retriever_type == "bm25":
-            retriever = registry.get("bm25_retriever")
-        elif request.retriever_type == "qdrant":
-            retriever = registry.get("qdrant_retriever")
-        else:
-            raise ValueError(f"Unknown retriever type: {request.retriever_type}")
+#         retriever.build_index(chunks)
+#         logger.info(f"Admin {user['email']} built {request.retriever_type} index")
         
-        retriever.build_index(chunks)
-        
-        return {
-            "status": "success",
-            "retriever_type": request.retriever_type,
-            "chunks_indexed": len(chunks)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#         return {
+#             "status": "success",
+#             "retriever_type": request.retriever_type,
+#             "chunks_indexed": len(chunks),
+#             "admin": user["email"]
+#         }
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/index/stats/{retriever_type}")
 async def get_index_stats(retriever_type: str):
@@ -365,7 +437,7 @@ async def get_index_stats(retriever_type: str):
         
         return retriever.get_stats()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ==================== CONFIGURATION ENDPOINTS ====================
 
@@ -387,7 +459,8 @@ async def get_config():
             "config_sections": registry.list_config_sections()
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/config/{section}")
 async def get_config_section(section: str):
@@ -402,24 +475,23 @@ async def get_config_section(section: str):
     try:
         return registry.get_config(section)
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/config/reload")
-async def reload_config():
+async def reload_config(user: dict = Depends(verify_jwt)):
     """
-    Reload configuration from YAML file.
-    Refreshes all settings without restarting the service.
-    Useful for applying configuration changes dynamically.
+    PROTECTED + ADMIN ONLY: Reload configuration.
+    """
+    if user.get("tier") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
     
-    Dependencies: registry.reload_config()
-    Status Codes: 200 (success), 500 (error)
-    Returns: status message and confirmation
-    """
     try:
         registry.reload_config()
+        logger.info(f"Admin {user['email']} reloaded config")
         return {"status": "success", "message": "Configuration reloaded"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==================== COMPONENT ENDPOINTS ====================
 
@@ -468,27 +540,26 @@ async def get_component_info(component_name: str):
                 "info": "No additional info available"
             }
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ==================== RETRIEVER SPECIFIC ENDPOINTS ====================
 
 @app.post("/bm25/clear-cache")
-async def clear_bm25_cache():
+async def clear_bm25_cache(user: dict = Depends(verify_jwt)):
     """
-    Clear BM25 retriever's query tokenization cache.
-    Frees memory used by cached tokenized queries.
-    Useful when system memory is constrained.
+    PROTECTED + ADMIN ONLY: Clear BM25 cache.
+    """
+    if user.get("tier") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
     
-    Dependencies: bm25_retriever.clear_cache()
-    Status Codes: 200 (success), 500 (error)
-    Returns: status message
-    """
     try:
         retriever = registry.get("bm25_retriever")
         retriever.clear_cache()
+        logger.info(f"Admin {user['email']} cleared BM25 cache")
         return {"status": "success", "message": "BM25 cache cleared"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/hybrid/config")
 async def get_hybrid_config():
@@ -534,3 +605,21 @@ async def health_check():
         }
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+    
+# ==================== STARTUP EVENTS ====================
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and check connections on startup"""
+    try:
+        logger.info('Initializing database')
+        from auth.models import init_database
+        init_database()
+    except Exception as e:
+        print(f"⚠ Database initialization: {e}")
+    
+    try:
+        from auth.cache_manager import redis_manager
+        print("✓ In-memory cache initialized")
+    except Exception as e:
+        print(f"⚠ Cache initialization: {e}")
