@@ -42,8 +42,20 @@ class AuthManager:
     def _verify_password(self, password: str, password_hash: str) -> bool:
         """Verify password against hash"""
         try:
+            # Handle None case
+            if not password_hash:
+                logger.error("Password hash is None")
+                return False
+            
+            # Convert password to bytes
             password_bytes = password.encode('utf-8')[:72]
-            hash_bytes = password_hash.encode('utf-8')
+            
+            # Handle if password_hash is already bytes
+            if isinstance(password_hash, bytes):
+                hash_bytes = password_hash
+            else:
+                hash_bytes = password_hash.encode('utf-8')
+            
             return bcrypt.checkpw(password_bytes, hash_bytes)
         except Exception as e:
             logger.error(f"Password verification error: {e}")
