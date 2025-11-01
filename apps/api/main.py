@@ -6,6 +6,7 @@ Validates auth, loads active flavor, and delegates to orchestrator/pipeline.
 """
 
 import os
+from sys import exc_info
 
 from fastapi.routing import APIRoute
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -14,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Header, Re
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import AsyncGenerator, List, Dict, Any, Optional
 from pathlib import Path
 from loguru import logger
 import faulthandler
@@ -257,54 +258,44 @@ async def query_endpoint(
 
 
 @app.post("/query/stream")
-async def query_stream(request: Request, user: dict = Depends(rate_limit_check)):
+async def query_stream(
+    request: QueryRequest,
+    user: dict = Depends(rate_limit_check)
+):
     """
     Streaming query endpoint using Server-Sent Events.
     
-    Requires: Authenticated user
-    Returns: Streamed answer tokens
+    Pydantic automatically validates request.query and request.k
+    rate_limit_check dependency handles rate limiting
     """
-    try:
-        body = await request.json()
-        query = body.get("query", "")
-        k = body.get("k", 5)
-        
-        if not query:
-            raise ValueError("Query is required")
-        
-        # Check rate limit
-        if not auth_manager.check_query_limit(user["sub"]):
-            raise HTTPException(status_code=429, detail="Daily query limit exceeded")
     
-    except Exception as exc:
-        async def error_generator():
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
-            yield "data: [DONE]\n\n"
+    async def event_generator():
+        """Generate streaming response."""
+        yield ": ping\n\n"  # Keep-alive
         
-        return StreamingResponse(
-            error_generator(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-        )
-    
-    def event_generator():
-        yield ": ping\n\n"
         try:
-            for chunk_dict in pipeline.query_stream(query, k=k):
+            token_count = 0
+            for chunk_dict in pipeline.query_stream(request.query, k=request.k):
+                token_count += 1
                 yield f"data: {json.dumps(chunk_dict)}\n\n"
             
+            logger.info(f"Stream completed: {token_count} tokens for user {user['sub']}")
             yield "data: [DONE]\n\n"
+            
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': str(e), 'type': type(e).__name__})}\n\n"
             yield "data: [DONE]\n\n"
     
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
     )
-
 
 # ==================== RETRIEVAL ENDPOINTS ====================
 
