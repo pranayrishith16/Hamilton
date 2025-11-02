@@ -8,7 +8,7 @@ These schemas handle:
 """
 
 from pydantic import BaseModel, Field, field_validator, validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from uuid import UUID
 
@@ -161,12 +161,18 @@ class ChatMessageResponse(BaseModel):
     conversation_id: str
     role: str
     content: str
-    sources: Optional[List[Dict[str, Any]]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    sources: Optional[List[Union[Dict[str, Any], str]]] = Field(
+        default_factory=list,
+        description="Retrieved documents or document IDs"
+    )
+    custom_metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Metadata about the message"
+    )
     tokens_used: Optional[int] = None
     latency_ms: Optional[int] = None
     created_at: str
-    
+
     class Config:
         orm_mode = True
 
@@ -182,8 +188,7 @@ class ConversationResponse(BaseModel):
     created_at: str
     updated_at: str
     is_archived: bool
-    metadata: Dict[str, Any]
-    message_count: int
+    custom_metadata: dict = Field(default_factory=dict) 
     
     class Config:
         orm_mode = True

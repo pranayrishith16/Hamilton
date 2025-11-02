@@ -10,6 +10,7 @@ Exposed endpoints:
 - GET /api/memory/stats - User memory stats
 """
 
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -19,6 +20,7 @@ import jwt
 from typing import Annotated
 
 
+from auth.auth_manager import auth_manager
 from memory.database import DatabaseManager
 from memory.service import ConversationService, ChatMessageService
 from memory.schemas import (
@@ -55,14 +57,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         token = credentials.credentials
         
         # Decode JWT token
-        payload = jwt.decode(
-            token,
-            key=os.getenv("JWT_SECRET_KEY", "your-secret-key"),  # Get from env!
-            algorithms=["HS256"]
-        )
+        payload = auth_manager.verify_token(token)
         
         # Extract user_id
-        user_id = payload.get("user_id")
+        user_id = payload.get("sub")
         
         if not user_id:
             logger.warning("Token missing user_id claim")
