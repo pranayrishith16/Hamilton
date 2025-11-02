@@ -9,7 +9,7 @@ with open("configs/prompts.yaml") as f:
     prompts: Dict[str, Dict[str, str]] = yaml.safe_load(f)
 
 
-def render_messages(query: str, context: List[Chunk]) -> List[Dict[str, Any]]:
+def render_messages(query: str, chunks: List[Chunk],context:str=None) -> List[Dict[str, Any]]:
     """
     Render a system+user message pair using the specified prompt template.
     """
@@ -21,7 +21,7 @@ def render_messages(query: str, context: List[Chunk]) -> List[Dict[str, Any]]:
     
     # Prepare data for the user template
     chunk_dicts = []
-    for chunk in context:
+    for chunk in chunks:
         chunk_dicts.append({
             "metadata": {
                 "source": chunk.metadata.get("source", ""),
@@ -39,7 +39,7 @@ def render_messages(query: str, context: List[Chunk]) -> List[Dict[str, Any]]:
         })
     
     # Render the user message, passing in chunks and query
-    user_msg = Template(cfg["user"]).render(chunks=chunk_dicts, query=query)
+    user_msg = Template(cfg["user"]).render(chunks=chunk_dicts, query=query,context=context)
     
     return [
         {"role": "system", "content": system_msg},

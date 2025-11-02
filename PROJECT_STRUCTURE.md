@@ -16,12 +16,58 @@ Root: `.`
   - doc_generator.py
   - generate_docs.py
   - mlflow.db
+  - one_off_script.py
   - poetry.lock
   - project_directory_generator.py
   - pyproject.toml
   - requirements.txt
   - running.md
+  - scripts.py
   - working_directory.md
+  - **ingestion/**
+    - __init__.py
+    - **embeddings/**
+      - __init__.py
+      - jobs.py
+      - **models/**
+        - __init__.py
+        - all_miniLM_v2.py
+        - legal.py
+        - legal_bert.py
+    - **pipelines/**
+      - __init__.py
+      - ingestion_pipeline.py
+      - refresh_policies.py
+    - **indexing/**
+      - __init__.py
+      - bm25_indexer.py
+      - graph_indexer.py
+      - vector_indexer.py
+    - **dataprep/**
+      - __init__.py
+      - **cleaners/**
+        - __init__.py
+        - pipeline.py
+      - **parsers/**
+        - __init__.py
+        - interfaces.py
+        - ocr_parser.py
+        - pdf_parser.py
+        - xml_parser.py
+      - **chunkers/**
+        - __init__.py
+        - base.py
+        - hierarchical_chunker.py
+        - langchain_chunker.py
+        - sliding_window_chunker.py
+      - **annotators/**
+        - __init__.py
+        - pipeline.py
+      - **loaders/**
+        - __init__.py
+        - azure_loader.py
+        - base_loader.py
+        - loader_factory.py
   - **security/**
     - __init__.py
     - **auth/**
@@ -38,6 +84,14 @@ Root: `.`
       - pii_rules.py
       - rbac.py
       - tenancy.py
+  - **auth/**
+    - auth_manager.py
+    - auth_routes.py
+    - cache_manager.py
+    - models.py
+    - rbac_dependencies.py
+    - security_middleware.py
+    - tier_config.py
   - **tests/**
     - __init__.py
     - **quality/**

@@ -20,6 +20,7 @@ legal_rag_metadata:
 
     {% endfor %}
     Question: {{ query }}
+    consider previous context:{{context}}
     Provide a detailed legal answer citing the most authoritative precedents and statutes.
 
 universal_rag:

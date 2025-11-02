@@ -37,11 +37,11 @@ class OpenRouterAdapter(GeneratorAdapter):
 
         
 
-    def generate(self, query: str, context: List[Chunk], **kwargs) -> str:
+    def generate(self, query: str, chunks: List[Chunk],context:str="", **kwargs) -> str:
         """Generate an answer given query and context."""
 
         with trace_request("generate", "openrouter_adapter.generate"):
-            messages = self._build_messages(query, context)
+            messages = self._build_messages(query,chunks, context)
 
             try:
                 completion = self.client.chat.completions.create(
@@ -67,8 +67,8 @@ class OpenRouterAdapter(GeneratorAdapter):
         return answer
     
 
-    def _build_messages(self, query: str, context: List[Chunk]) -> List[Dict[str, Any]]:
-        return render_messages(query,context)
+    def _build_messages(self, query: str, chunks: List[Chunk],context:str="") -> List[Dict[str, Any]]:
+        return render_messages(query,chunks,context)
 
     def get_model_info(self) -> Dict[str, Any]:
         return {
@@ -79,12 +79,12 @@ class OpenRouterAdapter(GeneratorAdapter):
             "api_url": self.api_url,
         }
     
-    def stream_generate(self,query:str,context:List[Chunk],**kwargs) -> Iterator[Any]:
+    def stream_generate(self, query: str, chunks: List[Chunk],context:str="", **kwargs) -> Iterator[Any]:
         """
         Streams OpenRouter/OpenAI chunks directly as they arrive
         """
 
-        messages = self._build_messages(query, context)
+        messages = self._build_messages(query, chunks,context)
 
         token_count = 0
         try:

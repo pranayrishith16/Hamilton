@@ -5,10 +5,17 @@ FastAPI entrypoint for the RAG system.
 Validates auth, loads active flavor, and delegates to orchestrator/pipeline.
 """
 
+from datetime import datetime
 import os
 from sys import exc_info
 
 from fastapi.routing import APIRoute
+from requests import Session
+
+from memory.database import DatabaseManager, get_db
+from memory.repository import ChatMessageRepository, ConversationRepository
+from memory.service import ConversationService
+from memory.utils import estimate_tokens, format_context_string
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Header, Request
@@ -34,6 +41,7 @@ from auth.security_middleware import (
     RateLimitMiddleware,
     AuditLoggingMiddleware
 )
+from memory.memory_routes import router as memory_router
 
 from auth.rbac_dependencies import (
     verify_jwt_token,
@@ -85,6 +93,7 @@ app.add_middleware(
 # ==================== ROUTERS ====================
 
 app.include_router(auth_router)
+app.include_router(memory_router)
 
 # ==================== Request/Response Models ====================
 
@@ -96,6 +105,7 @@ class QueryRequest(BaseModel):
     """
     query: str
     k: int = 10
+    conversation_id: Optional[str] = None
 
 class RetrieveRequest(BaseModel):
     """
@@ -146,6 +156,8 @@ Main orchestrator for query processing.
 Used by /query and /query/stream endpoints.
 """
 
+db_manager = DatabaseManager()
+
 # ==================== AUTH DEPENDENCY ====================
 
 def verify_jwt(authorization: str = Header(None)) -> dict:
@@ -164,6 +176,12 @@ def verify_jwt(authorization: str = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
     return payload
+
+# ==================== UTILITY FUNCTIONS ====================
+
+def get_db_session():
+    """Get database session for memory operations."""
+    return db_manager.get_session()
 
 
 # ==================== QUERY ENDPOINTS ====================
@@ -209,6 +227,7 @@ async def root():
 @app.post("/query")
 async def query_endpoint(
     request: QueryRequest,
+    db: Session = Depends(get_db),
     user: dict = Depends(rate_limit_check)
 ):
     """
@@ -217,85 +236,274 @@ async def query_endpoint(
     Requires: Authenticated user with verified email
     Rate limited based on subscription tier
     """
+
     try:
-        # Check rate limit
-        if not auth_manager.check_query_limit(user["sub"]):
-            raise HTTPException(
-                status_code=429,
-                detail="Daily query limit exceeded"
+        logger.info(f"Query from user {user['sub']}: {request.query[:50]}...")
+        # NEW: Handle conversation
+        if not request.conversation_id:
+            conv = ConversationService.create_conversation(
+                db=db,
+                user_id=user["sub"],
+                title=request.query[:100],
+                description="Auto-created from query"
             )
-        
-        result = pipeline.query(request.query, k=request.k)
-        
-        # Log successful query
-        from auth.models import get_db_session, QueryLog
-        session = get_db_session()
-        query_log = QueryLog(
+            conversation_id = conv["id"]
+            context_string = ""  # No prior context for new conversation
+            context_tokens = 0
+            logger.info(f'Created a new conversation')
+        else:
+            # Use existing conversation with TOKEN LIMITING
+            try:
+                context_string, context_tokens, messages_loaded = \
+                    ConversationService.load_context_with_token_limit(
+                        db=db,
+                        conversation_id=request.conversation_id,
+                        user_id=user["sub"],
+                        max_tokens=5000,  # ← HARD LIMIT: 2000 tokens max
+                        max_messages=10   # ← Also limit to last 10 messages
+                    )
+                
+                conversation_id = request.conversation_id
+                
+                logger.info(
+                    f"Using existing conversation: {conversation_id} "
+                    f"({messages_loaded} messages, {context_tokens} tokens)"
+                )
+            except ValueError as e:
+                logger.error(f"Access denied: {e}")
+                raise HTTPException(status_code=403, detail=str(e))
+
+        result = pipeline.query(request.query, k=request.k,context=context_string)
+
+        logger.info(f"Retrieved {len(result.retrieved_chunks)} chunks")
+
+        # NEW: Store to memory
+        user_msg = ChatMessageRepository.create(
+            db=db,
+            conversation_id=conversation_id,
             user_id=user["sub"],
-            query_text=request.query,
-            status="success"
+            role="user",
+            content=request.query,
+            sources=[chunk.id for chunk in result.retrieved_chunks],
+            tokens_used=estimate_tokens(request.query)
         )
-        session.add(query_log)
-        session.commit()
-        session.close()
+        db.commit()
+        logger.info(f"Stored user message: {user_msg.id}")
+
+        assistant_msg = ChatMessageRepository.create(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user["sub"],
+            role="assistant",
+            content=result.answer,
+            sources=[chunk.id for chunk in result.retrieved_chunks],
+            tokens_used=estimate_tokens(result.answer),
+            # Store retrieval statistics
+            metadata={
+                "retrieved_count": len(result.retrieved_chunks),
+                "generation_time_s": result.metadata.get("generation_time_s"),
+                "total_time_s": result.metadata.get("total_time_s"),
+                "context_tokens": context_tokens,
+                "context_used": context_string is not None and len(context_string) > 0
+            }
+        )
+        db.commit()
+        logger.info(f"Stored assistant message: {assistant_msg.id}")
         
-        return {
+        response = {
             "query": result.query,
             "answer": result.answer,
+            "conversation_id": str(conversation_id),
+            "user_message_id": str(user_msg.id),
+            "assistant_message_id": str(assistant_msg.id),
             "retrieved_chunks": [
-                {"id": c.id, "content": c.content, "metadata": c.metadata}
-                for c in result.retrieved_chunks
+                {
+                    "id": chunk.id,
+                    "content": chunk.content[:500],  # Truncate for response
+                    "metadata": chunk.metadata
+                }
+                for chunk in result.retrieved_chunks
             ],
-            "metadata": result.metadata,
-            "user_tier": user["tier"],
-            "user_id": user["sub"]
+            "memory": {
+                "context_used": context_string[:500] if context_string else None,
+                "context_used": context_string[:200] if context_string else None,
+                "context_available": len(context_string) > 0
+            },
+            "metadata": {
+                "retrieval_time_s": result.metadata.get("retrieval_time_s"),
+                "generation_time_s": result.metadata.get("generation_time_s"),
+                "total_time_s": result.metadata.get("total_time_s"),
+                "user_tier": user["tier"]
+            }
         }
+        
+        db.close()
+        return response
     
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Query error: {e}")
+        logger.error(f"Query error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @app.post("/query/stream")
 async def query_stream(
     request: QueryRequest,
+    db: Session = Depends(get_db),
     user: dict = Depends(rate_limit_check)
 ):
     """
-    Streaming query endpoint using Server-Sent Events.
-    
-    Pydantic automatically validates request.query and request.k
-    rate_limit_check dependency handles rate limiting
+    Streaming query endpoint with memory integration.
+    Streams tokens as they're generated while maintaining context.
     """
-    
     async def event_generator():
-        """Generate streaming response."""
-        yield ": ping\n\n"  # Keep-alive
-        
+        # Initialize all variables at start so they exist in any execution path
+        retrieved_chunks = []
+        conversation_id = None
+        context_tokens = 0
+        messages_loaded = 0
+        tokens_streamed = 0
+        full_answer = ""
+        generation_start = None
+
         try:
-            token_count = 0
-            for chunk_dict in pipeline.query_stream(request.query, k=request.k):
-                token_count += 1
-                yield f"data: {json.dumps(chunk_dict)}\n\n"
+            logger.info(f"Streaming query from user {user['sub']}: {request.query[:50]}...")
             
-            logger.info(f"Stream completed: {token_count} tokens for user {user['sub']}")
+            # Conversation management (with token limiting and verification)
+            if not request.conversation_id:
+                conv_data = ConversationService.create_conversation(
+                    db=db,
+                    user_id=user["sub"],
+                    title=request.query[:100],
+                    description="Auto-created from streaming query"
+                )
+                conversation_id = conv_data["id"]
+                context_string = ""
+                context_tokens = 0
+                messages_loaded = 0
+                
+                logger.info(f'Created new conversation: {conversation_id}')
+                
+                yield f"data: {json.dumps({'event': 'conversation_created', 'conversation_id': str(conversation_id)})}\n\n"
+            else:
+                try:
+                    context_string, context_tokens, messages_loaded = ConversationService.load_context_with_token_limit(
+                            db=db,
+                            conversation_id=request.conversation_id,
+                            user_id=user["sub"],
+                            max_tokens=5000,  # Hard token limit
+                            max_messages=10   # Limit number of messages considered
+                        )
+                    conversation_id = request.conversation_id
+                    
+                    logger.info(
+                        f"Using existing conversation: {conversation_id} "
+                        f"({messages_loaded} messages, {context_tokens} tokens)"
+                    )
+                    
+                    yield f"data: {json.dumps({'event': 'context_loaded', 'context_tokens': context_tokens, 'messages_loaded': messages_loaded, 'context_available': len(context_string) > 0})}\n\n"
+                    
+                except ValueError as e:
+                    logger.error(f"Access denied: {e}")
+                    yield f"data: {json.dumps({'event': 'error', 'error': 'Access denied', 'detail': str(e), 'status_code': 403})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+            # Start streaming generation
+            generation_start = datetime.now()
+            
+            for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
+                if "choices" in chunk_dict and len(chunk_dict["choices"]) > 0:
+                    delta = chunk_dict["choices"][0].get("delta", {})
+                    if delta.get("content"):
+                        token = delta["content"]
+                        full_answer += token
+                        tokens_streamed += 1
+                        
+                        yield f"data: {json.dumps({'event': 'token', 'content': token, 'tokens_streamed': tokens_streamed})}\n\n"
+            
+            generation_time_ms = (datetime.now() - generation_start).total_seconds() * 1000
+            
+            logger.info(f"Generation complete - Tokens: {tokens_streamed}, Time: {generation_time_ms:.0f}ms")
+            
+            yield f"data: {json.dumps({'event': 'generation_complete', 'total_tokens': tokens_streamed, 'generation_time_ms': generation_time_ms})}\n\n"
+
+            # Retrieve chunks for metadata if any
+            try:
+                retrieval_result = pipeline.query(request.query, k=request.k, context=context_string)
+                retrieved_chunks = retrieval_result.retrieved_chunks
+                logger.info(f"Retrieved {len(retrieved_chunks)} chunks for metadata")
+            except Exception as e:
+                logger.warning(f"Could not retrieve chunks for metadata: {e}")
+                retrieved_chunks = []
+
+            # Store user message
+            user_msg = ChatMessageRepository.create(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user["sub"],
+                role="user",
+                content=request.query,
+                sources=[chunk.id for chunk in retrieved_chunks],
+                tokens_used=estimate_tokens(request.query)
+            )
+            db.commit()
+            logger.info(f"Stored user message: {user_msg.id}")
+
+            # Store assistant message
+            assistant_msg = ChatMessageRepository.create(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user["sub"],
+                role="assistant",
+                content=full_answer,
+                sources=[chunk.id for chunk in retrieved_chunks],
+                tokens_used=estimate_tokens(full_answer),
+                metadata={
+                    "retrieved_count": len(retrieved_chunks),
+                    "generation_time_ms": generation_time_ms,
+                    "context_tokens": context_tokens,
+                    "context_used": context_tokens > 0,
+                    "streaming": True,
+                    "tokens_streamed": tokens_streamed
+                }
+            )
+            db.commit()
+            logger.info(f"Stored assistant message: {assistant_msg.id}")
+
+            yield f"data: {json.dumps({'event': 'stored', 'user_message_id': str(user_msg.id), 'assistant_message_id': str(assistant_msg.id)})}\n\n"
+
+            yield f"data: {json.dumps({'event': 'complete', 'conversation_id': str(conversation_id), 'answer_length': len(full_answer), 'total_tokens': tokens_streamed, 'retrieved_chunks': len(retrieved_chunks), 'context_tokens': context_tokens})}\n\n"
+
             yield "data: [DONE]\n\n"
-            
+
+        except HTTPException as e:
+            logger.error(f"HTTP Exception in streaming: {e.detail}")
+            yield f"data: {json.dumps({'event': 'error', 'error': e.detail, 'status_code': e.status_code})}\n\n"
+            yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Streaming error: {e}", exc_info=True)
-            yield f"data: {json.dumps({'error': str(e), 'type': type(e).__name__})}\n\n"
+            yield f"data: {json.dumps({'event': 'error', 'error': 'Internal server error', 'detail': str(e), 'status_code': 500})}\n\n"
             yield "data: [DONE]\n\n"
-    
+        finally:
+            try:
+                db.close()
+                logger.debug("Database connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing database connection: {e}")
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive"
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked"
         }
     )
+
 
 # ==================== RETRIEVAL ENDPOINTS ====================
 
@@ -601,16 +809,21 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database and check connections on startup"""
+    """Initialize on startup."""
     try:
-        logger.info('Initializing database')
+        logger.info("Initializing auth database...")
         from auth.models import init_database
         init_database()
+        logger.info("✓ Auth database initialized")
     except Exception as e:
-        print(f"⚠ Database initialization: {e}")
+        logger.warning(f"Auth database init: {e}")
     
+    # NEW: Initialize memory system database
     try:
-        from auth.cache_manager import redis_manager
-        print("✓ In-memory cache initialized")
+        logger.info("Initializing memory database...")
+        from memory.database import DatabaseManager
+        DatabaseManager.initialize()
+        logger.info("✓ Memory database initialized and tables created")
     except Exception as e:
-        print(f"⚠ Cache initialization: {e}")
+        logger.error(f"Memory database init failed: {e}", exc_info=True)
+        raise

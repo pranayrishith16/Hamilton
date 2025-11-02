@@ -18,7 +18,7 @@ class Pipeline:
         self.request_id: Optional[str] = None
         self.logger = logger
         
-    def query(self, query: str, k: int = 10, rerank_k: int = 5) -> QueryResult:
+    def query(self, query: str, k: int = 10, context:str="") -> QueryResult:
         """Process a query through the full pipeline."""
 
         start_time = time.time()
@@ -47,7 +47,7 @@ class Pipeline:
             self.logger.info("Generation started")
             t0 = time.time()
             generator = registry.get("generator")
-            raw_answer = generator.generate(query, chunks)
+            raw_answer = generator.generate(query, chunks,context=context)
             t1 = time.time()
             gen_time = t1 - t0
 
@@ -84,42 +84,77 @@ class Pipeline:
             metadata=metadata,
         )
 
-    def query_stream(self, query: str, k: int) -> Iterator[Dict[str, Any]]:
+    def query_stream(
+        self, 
+        query: str, 
+        k: int = 10,
+        context: str = "" 
+    ) -> Iterator[Dict[str, Any]]:
         """
-        Sync generator that:
-        - Emits one event with metadata (list of sources)
-        - Then yields token deltas without metadata
-        - Finally signals completion
+        Streaming query with memory context.
+        
+        Emits:
+        1. Metadata event with context info
+        2. Token delta events
+        3. [DONE] signal
         """
-
-        # Retrieve
+        # RETRIEVE
         t0 = time.time()
         retriever = registry.get("hybrid_retriever")
         chunks = retriever.retrieve(query, k=k)
         t1 = time.time()
-
-        # Emit metadata event
+        
+        # EMIT METADATA EVENT
         sources = [
-            {"id": c.id, "source": c.metadata.get("source"), "snippet": c.content[:200]}
+            {
+                "id": c.id,
+                "source": c.metadata.get("source"),
+                "snippet": c.content[:200],
+                "context_used": len(context) > 0  # Indicate if memory was used
+            }
             for c in chunks
         ]
-        yield {"metadata": sources, "choices": [{"delta": {"content": ""}}]}
-
-        # Stream generation
+        
+        yield {
+            "metadata": {
+                "sources": sources,
+                "context_available": len(context) > 0,
+                "context_length": len(context)
+            },
+            "choices": [{"delta": {"content": ""}}]
+        }
+        
+        # STREAM GENERATION (with context)
         generator = registry.get("generator")
-        for delta in generator.stream_generate(query, chunks):
+        for delta in generator.stream_generate(query, chunks, context=context):  # NEW: context
             yield delta
-
-        # Done signal
+        
+        # DONE SIGNAL
         yield {"choices": [{"delta": {"content": "[DONE]"}}]}
-
-        # end_run()
-
     
-    def batch_query(self, queries: List[str], **kwargs) -> List[QueryResult]:
-        """Process multiple queries in batch."""
+    def batch_query(
+        self, 
+        queries: List[str], 
+        context_per_query: Optional[Dict[str, str]] = None,
+        **kwargs
+    ) -> List[QueryResult]:
+        """
+        Process multiple queries in batch WITH optional per-query context.
+        
+        Args:
+            queries: List of query strings
+            context_per_query: Dict mapping query to context string
+            **kwargs: Additional args for query()
+        
+        Returns:
+            List of QueryResults
+        """
         results = []
+        context_per_query = context_per_query or {}
+        
         for query in queries:
-            result = self.query(query, **kwargs)
+            context = context_per_query.get(query, "")
+            result = self.query(query, context=context, **kwargs)
             results.append(result)
+        
         return results
