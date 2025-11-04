@@ -3,10 +3,10 @@ SQLAlchemy models for user authentication.
 Uses pymssql driver (no ODBC required).
 """
 
-from sqlalchemy import ForeignKey, create_engine, Column, String, Integer, Boolean, DateTime, Text, inspect
+from sqlalchemy import Date, ForeignKey, create_engine, Column, String, Integer, Boolean, DateTime, Text, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import date, datetime
 import os
 import urllib.parse
 import uuid
@@ -40,6 +40,7 @@ class User(Base):
     tier = Column(String(50), default="free")
     daily_query_limit = Column(Integer, default=5)
     queries_today = Column(Integer, default=0)
+    # queries_today_date = Column(Date, default=lambda: date.today())
     
     # Status
     is_active = Column(Boolean, default=True)
@@ -50,10 +51,10 @@ class User(Base):
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # Password reset tokens (relationship)
-    password_resets = relationship("PasswordReset", back_populates="user")
+    password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
     
     # Refresh tokens (relationship)
-    refresh_tokens = relationship("RefreshToken", back_populates="user")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
 
 class Role(Base):
     """User roles (admin, editor, viewer, etc.)"""
@@ -75,8 +76,8 @@ class UserRole(Base):
     
     __tablename__ = "user_roles"
     
-    user_id = Column(String(36), ForeignKey("users.user_id"), primary_key=True)
-    role_id = Column(String(36), ForeignKey("roles.role_id"), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True)
+    role_id = Column(String(36), ForeignKey("roles.role_id", ondelete="CASCADE"), primary_key=True)
     assigned_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -86,7 +87,7 @@ class PasswordReset(Base):
     __tablename__ = "password_resets"
     
     reset_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     reset_token = Column(String(255), unique=True, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False)
@@ -103,7 +104,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
     
     token_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     refresh_token = Column(String(500), unique=True, nullable=False)
     access_token = Column(String(500), nullable=True)  # Associated access token
     expires_at = Column(DateTime, nullable=False)
@@ -125,7 +126,7 @@ class QueryLog(Base):
     __tablename__ = "query_logs"
     
     log_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     query_text = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     status = Column(String(50))
@@ -137,7 +138,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     audit_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True, index=True)
     event_type = Column(String(50), nullable=False)  # login, logout, register, password_reset, email_verify, etc.
     event_details = Column(Text)  # JSON string
     ip_address = Column(String(45), nullable=True)

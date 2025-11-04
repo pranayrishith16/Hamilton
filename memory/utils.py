@@ -12,6 +12,14 @@ from typing import List
 import logging
 
 logger = logging.getLogger(__name__)
+_tiktoken_available = False
+
+try:
+    import tiktoken
+    _tiktoken_available = True
+    logger.info("tiktoken library loaded successfully")
+except ImportError:
+    logger.warning("tiktoken not installed - using fallback token estimation (less accurate)")
 
 
 def format_context_string(messages: List) -> str:
@@ -96,12 +104,16 @@ def estimate_tokens(text: str) -> int:
         3
     """
     try:
-        import tiktoken
-        encoding = tiktoken.get_encoding("cl100k_base")  # GPT-3.5/4
-        return len(encoding.encode(text))
-    except ImportError:
-        # Fallback to rough estimation
-        return max(1, len(text) // 4)
+        if _tiktoken_available:
+            encoding = tiktoken.get_encoding("cl100k_base")
+            return len(encoding.encode(text))
+        else:
+            # Better fallback: ~1.3 tokens per word
+            words = text.split()
+            return max(1, int(len(words) * 1.3))
+    except Exception as e:
+        logger.error(f"Token estimation failed: {e}, using word count")
+        return max(1, len(text.split()))
 
 
 def count_messages_tokens(messages: List) -> int:

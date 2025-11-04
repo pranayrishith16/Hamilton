@@ -169,9 +169,9 @@ class ChatMessageResponse(BaseModel):
         default_factory=dict,
         description="Metadata about the message"
     )
-    tokens_used: Optional[int] = None
-    latency_ms: Optional[int] = None
-    created_at: str
+    tokens_used: Optional[int] = Field(default=None)
+    latency_ms: Optional[int] = Field(default=None)
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     class Config:
         orm_mode = True

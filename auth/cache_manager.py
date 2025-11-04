@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import threading
 
+from loguru import logger
+
 class InMemoryCacheManager:
     """In-memory cache manager using Python dicts"""
     
@@ -56,8 +58,13 @@ class InMemoryCacheManager:
     def store_session(self, user_id: str, token: str, ttl: int = 3600):
         """Store user session"""
         with self.lock:
+            key = f"session:{user_id}"
+            if key in self.sessions:
+                logger.debug(f"[CACHE] Revoking existing session for {user_id}")
+                del self.sessions[key]
+            
             expiry = datetime.utcnow() + timedelta(seconds=ttl)
-            self.sessions[f"session:{user_id}"] = (token, expiry)
+            self.sessions[key] = (token, expiry)
     
     def get_session(self, user_id: str) -> Optional[str]:
         """Get user session"""
@@ -99,6 +106,46 @@ class InMemoryCacheManager:
                     return user_id
                 del self.refresh_tokens[key]
             return None
+    
+    def verify_refresh_token_in_db(self, refreshtoken: str) -> tuple[str, bool]:
+        """
+        Verify refresh token exists and is valid in the database.
+        
+        Returns: (userid, is_valid)
+        Used as fallback when cache miss occurs (e.g., after server restart).
+        """
+        try:
+            from auth.models import RefreshToken, getdbsession
+            from datetime import datetime
+            
+            session = getdbsession()
+            try:
+                dbtoken = session.query(RefreshToken).filter(
+                    RefreshToken.refreshtoken == refreshtoken,
+                    RefreshToken.revoked == False,
+                    RefreshToken.expiressat > datetime.utcnow()
+                ).first()
+                
+                if not dbtoken:
+                    return None, False
+                
+                # Token is valid, repopulate cache
+                expiry = datetime.utcnow() + timedelta(
+                    seconds=int((dbtoken.expiressat - datetime.utcnow()).total_seconds())
+                )
+                with self.lock:
+                    key = f"refreshtoken:{refreshtoken}"
+                    self.refreshtokens[key] = (dbtoken.userid, expiry)
+                
+                return dbtoken.userid, True
+                
+            finally:
+                session.close()
+                
+        except Exception as e:
+            logger.error(f"Error verifying refresh token in DB: {e}")
+            return None, False
+
     
     def revoke_refresh_token(self, refresh_token: str):
         """Revoke single refresh token"""

@@ -42,6 +42,7 @@ from auth.security_middleware import (
     AuditLoggingMiddleware
 )
 from memory.memory_routes import router as memory_router
+from documents.doc_routes import router as document_router
 
 from auth.rbac_dependencies import (
     verify_jwt_token,
@@ -94,6 +95,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(memory_router)
+app.include_router(document_router)
 
 # ==================== Request/Response Models ====================
 
@@ -284,11 +286,22 @@ async def query_endpoint(
             user_id=user["sub"],
             role="user",
             content=request.query,
-            sources=[chunk.id for chunk in result.retrieved_chunks],
+            sources=None,
             tokens_used=estimate_tokens(request.query)
         )
         db.commit()
         logger.info(f"Stored user message: {user_msg.id}")
+
+        source_objects = []
+        for chunk in result.retrieved_chunks:
+            source_obj = {
+                "id": str(chunk.id),  # Document ID
+                "content": chunk.content,  # Full text excerpt
+                "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {},  # Metadata dict
+                "confidence": getattr(chunk, 'confidence', None)  # Optional confidence score
+            }
+            source_objects.append(source_obj)
+
 
         assistant_msg = ChatMessageRepository.create(
             db=db,
@@ -296,7 +309,7 @@ async def query_endpoint(
             user_id=user["sub"],
             role="assistant",
             content=result.answer,
-            sources=[chunk.id for chunk in result.retrieved_chunks],
+            sources=source_objects,
             tokens_used=estimate_tokens(result.answer),
             # Store retrieval statistics
             metadata={
@@ -318,16 +331,15 @@ async def query_endpoint(
             "assistant_message_id": str(assistant_msg.id),
             "retrieved_chunks": [
                 {
-                    "id": chunk.id,
+                    "id": str(chunk.id),
                     "content": chunk.content[:500],  # Truncate for response
-                    "metadata": chunk.metadata
+                    "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {}
                 }
                 for chunk in result.retrieved_chunks
             ],
             "memory": {
-                "context_used": context_string[:500] if context_string else None,
                 "context_used": context_string[:200] if context_string else None,
-                "context_available": len(context_string) > 0
+                "context_available": len(context_string) > 0 if context_string else False
             },
             "metadata": {
                 "retrieval_time_s": result.metadata.get("retrieval_time_s"),
@@ -445,11 +457,21 @@ async def query_stream(
                 user_id=user["sub"],
                 role="user",
                 content=request.query,
-                sources=[chunk.id for chunk in retrieved_chunks],
+                sources=None,
                 tokens_used=estimate_tokens(request.query)
             )
             db.commit()
             logger.info(f"Stored user message: {user_msg.id}")
+
+            source_objects = []
+            for chunk in retrieval_result.retrieved_chunks:
+                source_obj = {
+                    "id": str(chunk.id),  # Document ID
+                    "content": chunk.content,  # Full text excerpt
+                    "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {},  # Metadata dict
+                    "confidence": getattr(chunk, 'confidence', None)  # Optional confidence score
+                }
+                source_objects.append(source_obj)
 
             # Store assistant message
             assistant_msg = ChatMessageRepository.create(
@@ -458,7 +480,7 @@ async def query_stream(
                 user_id=user["sub"],
                 role="assistant",
                 content=full_answer,
-                sources=[chunk.id for chunk in retrieved_chunks],
+                sources=source_objects,
                 tokens_used=estimate_tokens(full_answer),
                 metadata={
                     "retrieved_count": len(retrieved_chunks),

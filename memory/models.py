@@ -104,7 +104,7 @@ class Conversation(Base):
     custom_metadata = Column(
         JSON,
         nullable=True,
-        default=lambda:{},
+        default=dict,
         doc="Extra data: {tags: [], shared_with: [], priority: 'high'}"
     )
     
@@ -218,7 +218,7 @@ class ChatMessage(Base):
     sources = Column(
         JSON,
         nullable=True,
-        default=lambda:[],
+        default=list,
         doc="""Retrieved documents used in generation:
         [
             {
@@ -235,7 +235,7 @@ class ChatMessage(Base):
     custom_metadata = Column(
         JSON,
         nullable=True,
-        default=lambda:{},
+        default=dict,
         doc="""Debugging and performance info:
         {
             'query_type': 'case_search|statute_lookup|analysis',

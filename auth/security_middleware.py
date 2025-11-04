@@ -40,8 +40,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Content Security Policy
         csp = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
+            "style-src 'self'; "
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
             "connect-src 'self'; "
@@ -156,21 +156,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         
         from auth.cache_manager import redis_manager
-        
-        # Use in-memory cache for rate limiting per IP
-        key = f"rate_limit:{client_ip}"
-        
-        # Store request count in cache with 60-second TTL
-        from datetime import timedelta, datetime
-        
-        # Simplified rate limit check
-        if not self._check_rate_limit(redis_manager, client_ip):
+
+        if not redis_manager.check_rate_limit(client_ip, limit=self.requests_per_minute):
             logger.warning(f"Rate limit exceeded for IP {client_ip}")
             raise HTTPException(
                 status_code=429,
                 detail="Too many requests. Please try again later."
             )
-        
         response = await call_next(request)
         
         # Add rate limit headers

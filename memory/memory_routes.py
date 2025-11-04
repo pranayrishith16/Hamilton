@@ -10,6 +10,7 @@ Exposed endpoints:
 - GET /api/memory/stats - User memory stats
 """
 
+import datetime
 import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -18,6 +19,8 @@ import logging
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from typing import Annotated
+
+from tenacity import TryAgain
 
 
 from auth.auth_manager import auth_manager
@@ -55,17 +58,32 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     """
     try:
         token = credentials.credentials
+        print('get_current_user - 1')
+
+        # Explicit JWT validation
+        if not token or len(token) == 0:
+            raise HTTPException(status_code=401, detail="No token provided")
+        print('get_current_user - 2')
+        # Count JWT parts (should be 3: header.payload.signature)
+        parts = token.split('.')
+        if len(parts) != 3:
+            logger.warning(f"Invalid JWT format: {len(parts)} parts")
+            raise HTTPException(status_code=401, detail="Invalid token format")
+        print('get_current_user - 3')
         
         # Decode JWT token
         payload = auth_manager.verify_token(token)
+        print(payload)
         
         # Extract user_id
         user_id = payload.get("sub")
+        print(user_id)
         
         if not user_id:
             logger.warning("Token missing user_id claim")
             raise HTTPException(status_code=401, detail="Invalid token: missing user_id")
-        
+        print('get_current_user - 6')
+        # Verify token is not expired (verify_token should do this, but let's be explicit)
         logger.debug(f"Authenticated user: {user_id}")
         return user_id
     
@@ -83,6 +101,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 @router.post("/conversations", response_model=ConversationResponse)
 async def create_conversation(
     request: CreateConversationRequest,
+    authenticated_user_id: str = Depends(get_current_user),
     db: Session = Depends(DatabaseManager.get_session)
 ):
     """
@@ -98,6 +117,11 @@ async def create_conversation(
     Returns:
         Created conversation with ID
     """
+    if request.user_id != authenticated_user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot create conversations for other users"
+        )
     try:
         result = ConversationService.create_conversation(
             db=db,

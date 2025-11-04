@@ -236,7 +236,7 @@ class ConversationService:
             
             if not messages:
                 logger.debug(f"No messages in conversation {conversation_id}")
-                return "", 0, 0
+                return "<NO_CONTEXT>", 0, 0
             
             # Build initial context
             context_string = rebuild_context_string(messages)
@@ -250,19 +250,19 @@ class ConversationService:
             
             # Drop oldest messages if exceeding token limit
             dropped_pairs = 0
-            while token_count > max_tokens and len(messages) > 2:
-                # Remove oldest message pair (Q&A)
-                messages = messages[2:]
-                dropped_pairs += 1
+            if token_count > max_tokens and len(messages) > 0:
+                # Binary search for max messages that fit
+                messages_to_keep = len(messages)
+                while token_count > max_tokens and messages_to_keep > 0:
+                    messages_to_keep -= 2  # Remove pairs
+                    messages_subset = messages[-messages_to_keep:] if messages_to_keep > 0 else []
+                    context_string = rebuild_context_string(messages_subset)
+                    token_count = estimate_tokens(context_string)
                 
-                # Rebuild context
-                context_string = rebuild_context_string(messages)
-                token_count = estimate_tokens(context_string)
-                
-                logger.debug(
-                    f"Dropped pair #{dropped_pairs}: now {len(messages)} messages, "
-                    f"{token_count} tokens"
-                )
+                if messages_to_keep > 0:
+                    messages = messages[-messages_to_keep:]
+                else:
+                    messages = []
             
             # Log final status
             messages_loaded = len(messages)

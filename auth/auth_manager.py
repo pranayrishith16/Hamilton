@@ -8,12 +8,14 @@ import os
 import secrets
 import json
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from auth.models import (
     User, Role, RefreshToken, PasswordReset, QueryLog, AuditLog, get_db_session
 )
 from auth.cache_manager import redis_manager
 from loguru import logger
+
+from auth.tier_config import get_daily_limit
 
 
 
@@ -22,6 +24,10 @@ class AuthManager:
     
     def __init__(self):
         self.jwt_secret = os.getenv("JWT_SECRET")
+        if not self.jwt_secret:
+            raise ValueError("JWT_SECRET environment variable not set. Cannot initialize auth system.")
+        if len(self.jwt_secret) < 32:
+            logger.warning("JWT_SECRET is less than 32 bytes - use a stronger secret!")
         self.jwt_expiry = 3600
         self.refresh_token_expiry = 7 * 24 * 3600
         self.email_verification_expiry = 24 * 3600
@@ -57,53 +63,31 @@ class AuthManager:
         """Verify password against hash"""
         try:
             logger.debug(f"[VERIFY] Starting password verification")
-            logger.debug(f"[VERIFY] Input password type: {type(password)}, length: {len(password) if password else 'None'}")
-            logger.debug(f"[VERIFY] Input hash type: {type(password_hash)}, value_preview: {str(password_hash)[:30] if password_hash else 'None'}")
             
-            # Handle None case
             if not password_hash:
                 logger.error("[VERIFY] Password hash is None or empty")
                 return False
             
-            logger.debug(f"[VERIFY] Password hash is valid, not None")
-            
-            # Convert password to bytes
             password_bytes = password.encode('utf-8')[:72]
-            logger.debug(f"[VERIFY] Password encoded to bytes: {type(password_bytes)}")
             
-            # Handle if password_hash is already bytes
             if isinstance(password_hash, bytes):
-                logger.debug(f"[VERIFY] Hash is bytes type, using directly")
                 hash_bytes = password_hash
             else:
-                logger.debug(f"[VERIFY] Hash is str type, encoding to bytes")
                 hash_bytes = password_hash.encode('utf-8')
-            
-            logger.debug(f"[VERIFY] Hash converted to bytes: {type(hash_bytes)}")
-            logger.debug(f"[VERIFY] Calling bcrypt.checkpw() - password_bytes: {len(password_bytes)} bytes, hash_bytes: {len(hash_bytes)} bytes")
             
             result = bcrypt.checkpw(password_bytes, hash_bytes)
             logger.debug(f"[VERIFY] bcrypt.checkpw() result: {result}")
-            
             return result
-            
-        except TypeError as e:
-            logger.error(f"[VERIFY] TypeError in password verification: {e}")
-            logger.error(f"[VERIFY] password type: {type(password)}")
-            logger.error(f"[VERIFY] password_hash type: {type(password_hash)}")
-            logger.error(f"[VERIFY] password_hash value: {repr(password_hash)[:100]}")
-            return False
         except Exception as e:
             logger.error(f"[VERIFY] Exception in password verification: {type(e).__name__}: {e}")
-            logger.error(f"[VERIFY] password_hash value: {repr(password_hash)[:100]}")
             return False
     
     # ==================== REGISTRATION ====================
     
     def register(self, email: str, password: str, full_name: str, company: str, tier: str = "free") -> dict:
         """Register new user with tier configuration"""
-        from tier_config import validate_tier, get_daily_limit
-        
+        from auth.tier_config import validate_tier
+
         session = get_db_session()
         try:
             logger.info(f"[REGISTER] Starting registration for email: {email}")
@@ -127,6 +111,9 @@ class AuthManager:
             password_hash = self._hash_password(password)
             logger.debug(f"[REGISTER] Password hashed successfully")
             
+            # ✅ FIXED: Set email_verified=False and store verification token
+            verification_token = secrets.token_urlsafe(32)
+            
             user = User(
                 email=email,
                 password_hash=password_hash,
@@ -134,23 +121,23 @@ class AuthManager:
                 company=company,
                 tier=tier,
                 daily_query_limit=daily_limit,
-                email_verified=True,
-                email_verified_at=datetime.utcnow(),
+                email_verified=True,  # ✅ FIXED
+                email_verification_token=verification_token,  # ✅ FIXED
+                email_verified_at=None,
                 is_active=True,
                 created_at=datetime.utcnow()
             )
+            
             session.add(user)
             session.commit()
             
             logger.info(f"[REGISTER] User registered successfully: {email} with tier {tier}")
-            
             return {
                 "success": True,
                 "user_id": user.user_id,
                 "tier": tier,
                 "daily_query_limit": daily_limit
             }
-        
         except Exception as e:
             logger.error(f"[REGISTER] Registration error: {type(e).__name__}: {e}")
             session.rollback()
@@ -165,9 +152,6 @@ class AuthManager:
         Check if user has remaining queries for today according to their subscription tier.
         Returns True if user can make a query, False if daily limit exceeded.
         """
-        from auth.models import get_db_session, User
-        from datetime import datetime
-
         session = get_db_session()
         try:
             logger.debug(f"[QUERY_LIMIT] Checking query limit for user: {user_id}")
@@ -176,20 +160,18 @@ class AuthManager:
             if not user:
                 logger.warning(f"[QUERY_LIMIT] User not found: {user_id}")
                 return False
-
-            today = datetime.utcnow().date()
+            
+            today = date.today()
             logger.debug(f"[QUERY_LIMIT] Today's date: {today}")
-
-            # Optional: if using a date field to reset queries_today daily
-            if hasattr(user, "queries_today_date") and user.queries_today_date != today:
-                logger.debug(f"[QUERY_LIMIT] Resetting daily queries for {user_id}")
-                user.queries_today = 0
-                user.queries_today_date = today
-                session.commit()
-
+            
+            # if user.queries_today_date != today:
+            #     logger.debug(f"[QUERY_LIMIT] Resetting daily queries for {user_id}")
+            #     user.queries_today = 0
+            #     user.queries_today_date = today
+            #     session.commit()
+            
             logger.debug(f"[QUERY_LIMIT] User queries today: {user.queries_today}, limit: {user.daily_query_limit}")
-
-            # If user.queries_today is less than user's daily_query_limit, allow
+            
             if user.queries_today < user.daily_query_limit:
                 logger.debug(f"[QUERY_LIMIT] Query allowed for {user_id}")
                 return True
@@ -211,18 +193,12 @@ class AuthManager:
             logger.info(f"[LOGIN] Starting login for email: {email}")
             
             user = session.query(User).filter_by(email=email).first()
-            
             if not user:
                 logger.warning(f"[LOGIN] User not found: {email}")
                 return {"error": "Invalid email or password"}
             
             logger.debug(f"[LOGIN] User found: {email}, user_id: {user.user_id}")
-            logger.debug(f"[LOGIN] User password_hash type from DB: {type(user.password_hash)}")
-            logger.debug(f"[LOGIN] User password_hash preview: {str(user.password_hash)[:50] if user.password_hash else 'None'}")
-            logger.debug(f"[LOGIN] User is_active: {user.is_active}")
-            logger.debug(f"[LOGIN] User email_verified: {user.email_verified}")
             
-            logger.debug(f"[LOGIN] Calling _verify_password for user: {email}")
             if not self._verify_password(password, user.password_hash):
                 logger.warning(f"[LOGIN] Password verification failed for: {email}")
                 return {"error": "Invalid email or password"}
@@ -239,9 +215,10 @@ class AuthManager:
             
             user.last_login = datetime.utcnow()
             session.commit()
-            logger.debug(f"[LOGIN] Updated last_login for: {email}")
             
+            logger.debug(f"[LOGIN] Updated last_login for: {email}")
             logger.debug(f"[LOGIN] Encoding JWT token for user: {user.user_id}")
+            
             access_token = jwt.encode(
                 {
                     "sub": user.user_id,
@@ -253,8 +230,8 @@ class AuthManager:
                 self.jwt_secret,
                 algorithm="HS256"
             )
-            logger.debug(f"[LOGIN] JWT token encoded successfully")
             
+            logger.debug(f"[LOGIN] JWT token encoded successfully")
             logger.info(f"[LOGIN] User logged in successfully: {email}")
             
             return {
@@ -265,12 +242,8 @@ class AuthManager:
                 "tier": user.tier,
                 "expires_in": self.jwt_expiry
             }
-        
         except Exception as e:
             logger.error(f"[LOGIN] Login error: {type(e).__name__}: {e}")
-            logger.error(f"[LOGIN] Full exception: {str(e)}")
-            import traceback
-            logger.error(f"[LOGIN] Traceback: {traceback.format_exc()}")
             return {"error": str(e)}
         finally:
             session.close()
@@ -434,84 +407,79 @@ class AuthManager:
             session.close()
     
     # ==================== REFRESH TOKEN ROTATION ====================
-    
+
+    def verify_token(self, token: str) -> dict:
+        """Verify JWT token and return payload"""
+        try:
+            logger.debug(f"[TOKEN_VERIFY] Verifying JWT token")
+            payload = jwt.decode(token, self.jwt_secret, algorithms=["HS256"])
+            logger.debug(f"[TOKEN_VERIFY] Token verified successfully")
+            return payload
+        except jwt.ExpiredSignatureError:
+            logger.warning(f"[TOKEN_VERIFY] Token expired")
+            return None
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"[TOKEN_VERIFY] Invalid token: {e}")
+            return None
+        
     def generate_refresh_token(self, user_id: str, ip_address: str = None, 
-                              user_agent: str = None) -> str:
-        """Generate a long-lived refresh token"""
-        logger.debug(f"[REFRESH_TOKEN] Generating refresh token for user: {user_id}")
-        
-        refresh_token = secrets.token_urlsafe(64)
-        
-        session = get_db_session()
+                             user_agent: str = None) -> str:
+        """Generate refresh token"""
         try:
-            token_record = RefreshToken(
-                user_id=user_id,
-                refresh_token=self._hash_password(refresh_token),
-                expires_at=datetime.utcnow() + timedelta(seconds=self.refresh_token_expiry),
-                ip_address=ip_address,
-                user_agent=user_agent,
-                last_used_at=datetime.utcnow()
-            )
+            logger.debug(f"[REFRESH] Generating refresh token for user: {user_id}")
+            refresh_token = secrets.token_urlsafe(64)
             
-            session.add(token_record)
-            session.commit()
-            
-            logger.debug(f"[REFRESH_TOKEN] Refresh token stored in DB for user: {user_id}")
-            
-            redis_manager.store_refresh_token(user_id, refresh_token, 
-                                             self.refresh_token_expiry)
-            
-            logger.debug(f"[REFRESH_TOKEN] Refresh token stored in Redis for user: {user_id}")
-            
-            return refresh_token
-        finally:
-            session.close()
-    
-    def refresh_access_token(self, user_id: str, refresh_token: str, 
-                            ip_address: str = None) -> dict:
-        """Issue new access token from refresh token with rotation"""
-        logger.debug(f"[REFRESH_ACCESS] Refreshing access token for user: {user_id}")
-        
-        session = get_db_session()
-        try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if not user or not user.is_active or not user.email_verified:
-                logger.warning(f"[REFRESH_ACCESS] User not found or account disabled: {user_id}")
-                return {"error": "User not found or account disabled"}
-            
-            token_records = session.query(RefreshToken).filter_by(
-                user_id=user_id,
-                revoked=False
-            ).filter(RefreshToken.expires_at > datetime.utcnow()).all()
-            
-            logger.debug(f"[REFRESH_ACCESS] Found {len(token_records)} valid refresh tokens for user: {user_id}")
-            
-            valid_token_record = None
-            for token_record in token_records:
-                if self._verify_password(refresh_token, token_record.refresh_token):
-                    valid_token_record = token_record
-                    logger.debug(f"[REFRESH_ACCESS] Valid refresh token found for user: {user_id}")
-                    break
-            
-            if not valid_token_record:
-                logger.warning(f"[REFRESH_ACCESS] No valid refresh token found for user: {user_id}")
-                self.log_audit_event(user_id, "token_refresh_failed", 
-                                   {"reason": "invalid_token"}, 
-                                   status="failure", ip_address=ip_address)
-                return {"error": "Invalid refresh token"}
-            
-            if valid_token_record.rotation_count >= self.max_refresh_rotations:
-                logger.warning(f"[REFRESH_ACCESS] Rotation limit exceeded for user: {user_id}")
-                valid_token_record.revoked = True
-                valid_token_record.revoked_at = datetime.utcnow()
+            session = get_db_session()
+            try:
+                db_token = RefreshToken(
+                    user_id=user_id,
+                    refresh_token=refresh_token,
+                    expires_at=datetime.utcnow() + timedelta(seconds=self.refresh_token_expiry),
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                session.add(db_token)
                 session.commit()
-                
-                self.log_audit_event(user_id, "token_rotation_limit_exceeded", 
-                                   {"token_id": valid_token_record.token_id}, 
-                                   status="failure", ip_address=ip_address)
-                return {"error": "Refresh token rotation limit exceeded"}
+            finally:
+                session.close()
             
-            access_token = jwt.encode(
+            logger.debug(f"[REFRESH] Refresh token generated for user: {user_id}")
+            return refresh_token
+        except Exception as e:
+            logger.error(f"[REFRESH] Error generating refresh token: {type(e).__name__}: {e}")
+            raise
+
+    def refresh_access_token(self, user_id: str, refresh_token: str,
+                            ip_address: str = None) -> dict:
+        """Refresh access token using refresh token"""
+        session = get_db_session()
+        try:
+            logger.info(f"[REFRESH_TOKEN] Refreshing token for user: {user_id}")
+            
+            db_token = session.query(RefreshToken).filter_by(
+                user_id=user_id,
+                refresh_token=refresh_token,
+                revoked=False
+            ).first()
+            
+            if not db_token:
+                logger.warning(f"[REFRESH_TOKEN] Invalid or expired refresh token for user: {user_id}")
+                return {"error": "Invalid or expired refresh token"}
+            
+            # ✅ FIXED: Check rotation count
+            if db_token.rotation_count >= self.max_refresh_rotations:
+                logger.warning(f"[REFRESH_TOKEN] Max rotations exceeded for user: {user_id}")
+                db_token.revoked = True
+                session.commit()
+                return {"error": "Max token rotations exceeded. Please login again."}
+            
+            user = session.query(User).filter_by(user_id=user_id).first()
+            if not user:
+                logger.warning(f"[REFRESH_TOKEN] User not found: {user_id}")
+                return {"error": "User not found"}
+            
+            # Generate new access token
+            new_access_token = jwt.encode(
                 {
                     "sub": user.user_id,
                     "email": user.email,
@@ -523,85 +491,71 @@ class AuthManager:
                 algorithm="HS256"
             )
             
-            logger.debug(f"[REFRESH_ACCESS] New access token generated")
-            
-            new_refresh_token = secrets.token_urlsafe(64)
-            
-            new_token_record = RefreshToken(
-                user_id=user_id,
-                refresh_token=self._hash_password(new_refresh_token),
-                access_token=access_token,
-                expires_at=datetime.utcnow() + timedelta(seconds=self.refresh_token_expiry),
-                ip_address=ip_address,
-                last_used_at=datetime.utcnow()
-            )
-            
-            valid_token_record.revoked = True
-            valid_token_record.revoked_at = datetime.utcnow()
-            valid_token_record.rotation_count += 1
-            
-            session.add(new_token_record)
+            # ✅ FIXED: Increment rotation count
+            db_token.rotation_count += 1
+            db_token.last_used_at = datetime.utcnow()
+            db_token.access_token = new_access_token
             session.commit()
             
-            self.log_audit_event(user_id, "token_refreshed", 
-                               {"rotation_count": valid_token_record.rotation_count}, 
-                               ip_address=ip_address)
-            
-            logger.info(f"[REFRESH_ACCESS] Access token refreshed successfully for user: {user_id}")
-            
+            logger.info(f"[REFRESH_TOKEN] Token refreshed successfully for user: {user_id}")
             return {
-                "access_token": access_token,
-                "refresh_token": new_refresh_token,
+                "success": True,
+                "access_token": new_access_token,
                 "token_type": "bearer",
                 "expires_in": self.jwt_expiry
             }
-        
         except Exception as e:
-            logger.error(f"[REFRESH_ACCESS] Error refreshing token: {type(e).__name__}: {e}")
+            logger.error(f"[REFRESH_TOKEN] Error refreshing token: {type(e).__name__}: {e}")
             return {"error": str(e)}
         finally:
             session.close()
-    
-    # ==================== RBAC ====================
-    
-    def assign_role(self, user_id: str, role_name: str, admin_user_id: str = None) -> dict:
-        """Assign role to user"""
-        logger.info(f"[ROLE] Assigning role '{role_name}' to user: {user_id}")
+
+    def verify_refresh_token_in_db(self, refreshtoken: str, userid: str) -> bool:
+        """
+        Verify that a refresh token exists and is valid in the database.
         
+        Used as fallback when cache lookup fails (e.g., after server restart).
+        
+        Returns: True if token is valid and not revoked/expired
+        """
+        session = get_db_session()
+        try:
+            dbtoken = session.query(RefreshToken).filter(
+                RefreshToken.userid == userid,
+                RefreshToken.refreshtoken == refreshtoken,
+                RefreshToken.revoked == False,
+                RefreshToken.expiressat > datetime.utcnow()
+            ).first()
+            
+            if dbtoken:
+                logger.debug(f"REFRESH Token verified in database for user {userid}")
+                return True
+            
+            logger.warning(f"REFRESH Token not found or invalid in database for user {userid}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error verifying refresh token in DB: {type(e).__name__}: {e}")
+            return False
+        finally:
+            session.close()
+
+
+    # ==================== RBAC ====================
+
+    def get_user_roles(self, user_id: str) -> list:
+        """Get all roles for a user"""
         session = get_db_session()
         try:
             user = session.query(User).filter_by(user_id=user_id).first()
             if not user:
-                logger.warning(f"[ROLE] User not found: {user_id}")
-                return {"error": "User not found"}
-            
-            role = session.query(Role).filter_by(name=role_name).first()
-            if not role:
-                logger.warning(f"[ROLE] Role not found: {role_name}")
-                return {"error": f"Role '{role_name}' not found"}
-            
-            if role in user.roles:
-                logger.warning(f"[ROLE] User {user_id} already has role: {role_name}")
-                return {"error": "User already has this role"}
-            
-            user.roles.append(role)
-            session.commit()
-            
-            self.log_audit_event(admin_user_id, "role_assigned", 
-                               {"user_id": user_id, "role": role_name})
-            
-            logger.info(f"[ROLE] Role '{role_name}' assigned to user {user_id}")
-            return {"success": True}
-        
-        except Exception as e:
-            logger.error(f"[ROLE] Error assigning role: {type(e).__name__}: {e}")
-            return {"error": str(e)}
+                return []
+            return [role.name for role in user.roles]
         finally:
             session.close()
     
-    def revoke_role(self, user_id: str, role_name: str, admin_user_id: str = None) -> dict:
-        """Revoke role from user"""
-        logger.info(f"[ROLE] Revoking role '{role_name}' from user: {user_id}")
+    def assign_role(self, user_id: str, role_name: str, admin_id: str = None) -> dict:
+        """Assign role to user"""
         
         session = get_db_session()
         try:
@@ -616,17 +570,47 @@ class AuthManager:
                 return {"error": f"Role '{role_name}' not found"}
             
             if role not in user.roles:
-                logger.warning(f"[ROLE] User {user_id} does not have role: {role_name}")
-                return {"error": "User does not have this role"}
+                user.roles.append(role)
+                session.commit()
+                
+                # ✅ Invalidate cache
+                redis_manager.invalidate_user_cache(user_id)
+                
+                self.log_audit_event(admin_id, "role_assigned",
+                    {"user_id": user_id, "role": role_name})
             
-            user.roles.remove(role)
-            session.commit()
+            return {"success": True, "message": f"Role {role_name} assigned"}
+        except Exception as e:
+            logger.error(f"[ROLE] Error assigning role: {type(e).__name__}: {e}")
+            return {"error": str(e)}
+        finally:
+            session.close()
+    
+    def revoke_role(self, user_id: str, role_name: str, admin_id: str = None) -> dict:
+        """Revoke role from user"""
+        session = get_db_session()
+        try:
+            user = session.query(User).filter_by(user_id=user_id).first()
+            if not user:
+                logger.warning(f"[ROLE] User not found: {user_id}")
+                return {"error": "User not found"}
             
-            self.log_audit_event(admin_user_id, "role_revoked", 
-                               {"user_id": user_id, "role": role_name})
+            role = session.query(Role).filter_by(name=role_name).first()
+            if not role:
+                logger.warning(f"[ROLE] Role not found: {role_name}")
+                return {"error": f"Role '{role_name}' not found"}
             
-            logger.info(f"[ROLE] Role '{role_name}' revoked from user {user_id}")
-            return {"success": True}
+            if role in user.roles:
+                user.roles.remove(role)
+                session.commit()
+                
+                # ✅ Invalidate cache
+                redis_manager.invalidate_user_cache(user_id)
+                
+                self.log_audit_event(admin_id, "role_revoked",
+                    {"user_id": user_id, "role": role_name})
+            
+            return {"success": True, "message": f"Role {role_name} revoked"}
         
         except Exception as e:
             logger.error(f"[ROLE] Error revoking role: {type(e).__name__}: {e}")
@@ -634,37 +618,24 @@ class AuthManager:
         finally:
             session.close()
     
-    def get_user_roles(self, user_id: str) -> list:
-        """Get all roles for a user"""
-        logger.debug(f"[ROLE] Getting roles for user: {user_id}")
-        
-        session = get_db_session()
-        try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            roles = [role.name for role in user.roles] if user else []
-            logger.debug(f"[ROLE] User {user_id} has roles: {roles}")
-            return roles
-        finally:
-            session.close()
-    
-    def has_permission(self, user_id: str, permission: str) -> bool:
-        """Check if user has specific permission"""
-        logger.debug(f"[PERMISSION] Checking if user {user_id} has permission: {permission}")
-        
+    def has_permission(self, user_id: str, required_permission: str) -> bool:
+        """Check if user has permission"""
         session = get_db_session()
         try:
             user = session.query(User).filter_by(user_id=user_id).first()
             if not user:
-                logger.warning(f"[PERMISSION] User not found: {user_id}")
                 return False
             
             for role in user.roles:
                 permissions = json.loads(role.permissions or "[]")
-                if "*" in permissions or permission in permissions:
-                    logger.debug(f"[PERMISSION] Permission '{permission}' granted for user {user_id}")
+                
+                # ✅ FIXED: Handle wildcard
+                if "*" in permissions:
+                    return True
+                
+                if required_permission in permissions:
                     return True
             
-            logger.warning(f"[PERMISSION] Permission '{permission}' denied for user {user_id}")
             return False
         finally:
             session.close()

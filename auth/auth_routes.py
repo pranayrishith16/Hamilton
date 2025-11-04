@@ -2,11 +2,13 @@
 FastAPI authentication endpoints.
 """
 
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Header, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field, validator
 from auth.auth_manager import auth_manager
+from auth.models import User, RefreshToken, get_db_session
 from auth.cache_manager import redis_manager
 from loguru import logger
 import json
@@ -381,32 +383,58 @@ async def refresh_token(data: RefreshTokenRequest, request: Request):
     Old refresh token is revoked after new one is issued.
     """
     try:
-        # Extract user_id from request (you need to validate somehow)
-        # This is typically done by storing refresh_token -> user_id mapping
-        from auth.cache_manager import redis_manager as rm
-        
-        # Get user_id associated with refresh token from Redis
-        user_id = rm.get_refresh_token_user(data.refresh_token)
-        
+        # step 1: check cache manager
+        user_id = redis_manager.get_refresh_token_user(data.refresh_token)
+
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
+            logger.debug(f"REFRESH Cache miss for token, checking database")
+            
+            # Query database for the refresh token
+            from auth.models import RefreshToken, get_db_session
+            session = get_db_session()
+            try:
+                dbtoken = session.query(RefreshToken).filter_by(
+                    refresh_token=data.refresh_token,
+                    revoked=False,
+                ).first()
+                
+                if not dbtoken:
+                    logger.warning(f"REFRESH Invalid or expired refresh token")
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Invalid refresh token"
+                    )
+                
+                user_id = dbtoken.user.user_id
+                
+                # Repopulate cache from database
+                logger.debug(f"REFRESH Repopulating cache from database for user {user_id}")
+                redis_manager.store_refresh_token(
+                    user_id=user_id,
+                    refresh_token=data.refresh_token,
+                    ttl=int((dbtoken.expires_at - datetime.utcnow()).total_seconds())
+                )
+                
+            finally:
+                session.close()
         
+        # Step 3: Continue with normal refresh flow
         result = auth_manager.refresh_access_token(
-            user_id,
-            data.refresh_token,
-            ip_address=get_client_ip(request)
+            user_id=user_id,
+            refresh_token=data.refresh_token,
+            ip_address=get_client_ip(request),
         )
         
         if "error" in result:
             raise HTTPException(status_code=401, detail=result["error"])
         
         return result
-    
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token refresh error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Token refresh error {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Token refresh failed")
 
 
 # ==================== ROLE MANAGEMENT ====================
