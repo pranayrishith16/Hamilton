@@ -85,7 +85,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.veritlyai.com"],
+    allow_origins=["https://www.veritlyai.com",
+                   "http://localhost:3000",        # Your frontend dev server
+                    "http://127.0.0.1:3000",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
