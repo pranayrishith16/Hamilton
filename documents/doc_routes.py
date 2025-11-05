@@ -96,7 +96,9 @@ async def getDocumentAccess(
                 blob_name=blob_path,
                 account_key=AZURE_STORAGE_ACCOUNT_KEY,
                 permission=BlobSasPermissions(read=True),
-                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
+                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes),
+                rscd="inline",           
+                rsct="application/pdf"
             )
             
             logger.debug(f"SAS token generated successfully")
