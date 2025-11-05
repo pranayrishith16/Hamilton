@@ -42,7 +42,7 @@ from auth.security_middleware import (
     AuditLoggingMiddleware
 )
 from memory.memory_routes import router as memory_router
-from documents.doc_routes import router as document_router
+from documents.doc_routes import create_temp_container, router as document_router
 
 from auth.rbac_dependencies import (
     verify_jwt_token,
@@ -849,4 +849,10 @@ async def startup_event():
         logger.info("✓ Memory database initialized and tables created")
     except Exception as e:
         logger.error(f"Memory database init failed: {e}", exc_info=True)
+        raise
+
+    try:
+        create_temp_container()
+    except Exception as e:
+        logger.error(f"temp container creating error")
         raise
