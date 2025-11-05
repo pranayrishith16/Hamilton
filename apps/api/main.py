@@ -853,6 +853,7 @@ async def startup_event():
 
     try:
         create_temp_container()
+        logger.info("✓ Temp container either present or created")
     except Exception as e:
         logger.error(f"temp container creating error")
         raise
