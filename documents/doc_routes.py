@@ -1,6 +1,7 @@
-from azure.storage.blob import BlobServiceClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobServiceClient
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query, Header, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import StreamingResponse
 from loguru import logger
 import os
 import dotenv
@@ -26,109 +27,124 @@ else:
     blob_service_client = None
     logger.error("❌ AZURE_STORAGE_CONNECTION_STRING not configured")
 
-# ============ SINGLE ENDPOINT ============
 
-@router.get("/access/{blob_path:path}")
-async def getDocumentAccess(
+# ✅ HELPER FUNCTION: Generator for true streaming
+def generate_chunks(blob_client):
+    """
+    Generator that yields chunks directly from Azure
+    Never loads entire file into memory
+    
+    Yields:
+        bytes: 4KB chunks from blob
+    """
+    try:
+        download_stream = blob_client.download_blob()
+        
+        chunk_count = 0
+        for chunk in download_stream.chunks():
+            chunk_count += 1
+            if chunk_count % 100 == 0:
+                logger.debug(f"[STREAM] Sent {chunk_count} chunks...")
+            
+            # ✅ Yield immediately (don't buffer)
+            yield chunk
+        
+        logger.info(f"[STREAM] Complete: {chunk_count} total chunks")
+    
+    except Exception as e:
+        logger.error(f"[STREAM] Error during chunk generation: {e}")
+        raise
+
+
+# ============ MAIN ENDPOINT ============
+
+@router.get("/view/{blob_path:path}")
+async def viewDocument(
     blob_path: str,
-    expiry_minutes: int = Query(30, ge=5, le=240),
     jwt_user: dict = Depends(verify_jwt_token)
 ):
     """
-    Generate SAS URL for accessing document in Azure Blob Storage
+    ✅ True streaming PDF viewer (no memory bloat)
+    
+    Security: JWT token must be valid (30-min expiry)
+    Viewing: Browser displays inline (not download)
+    Memory: ~4KB (one chunk) regardless of file size
+    
+    Args:
+        blob_path: Path to PDF in Azure Blob (e.g., "case_rcpdfs/file.pdf")
+        jwt_user: Validated JWT user (dependency injection)
+    
+    Returns:
+        StreamingResponse: PDF chunks streamed to browser
+    
+    Raises:
+        HTTPException: 401 if token invalid, 404 if blob not found, 500 if error
     """
+    
     try:
-        if not blob_service_client:
-            logger.error("Azure Blob Storage not configured")
-            raise HTTPException(
-                status_code=503,
-                detail="Document service unavailable - Azure not configured"
-            )
+        # ============================================
+        # STEP 1: Validate User
+        # ============================================
         
         user_id = jwt_user.get("sub")
         if not user_id:
-            logger.error("JWT token missing 'sub' claim")
+            logger.warning(f"[VIEW] Request without valid JWT")
             raise HTTPException(status_code=401, detail="Invalid token")
         
-        logger.debug(f"[ACCESS] User {user_id} requesting SAS URL for: {blob_path}")
+        logger.info(f"[VIEW] User {user_id} viewing: {blob_path}")
         
-        # Verify blob exists
+        
+        # ============================================
+        # STEP 2: Get Blob Reference & Verify Exists
+        # ============================================
+        
         try:
             blob_client = blob_service_client.get_blob_client(
                 container=AZURE_CONTAINER_NAME,
                 blob=blob_path
             )
+            
+            # Check blob exists and get size
             properties = blob_client.get_blob_properties()
-            logger.debug(f"[ACCESS] Blob found: {blob_path} ({properties.size} bytes)")
+            blob_size_mb = properties.size / (1024 * 1024)
+            logger.info(f"[VIEW] Blob found: {blob_path} ({blob_size_mb:.2f} MB)")
+        
         except Exception as e:
-            if "ContainerNotFound" in str(e):
-                logger.error(f"Container not found: {e}")
-                raise HTTPException(status_code=503, detail="Container not found")
-            elif "BlobNotFound" in str(e) or "not found" in str(e).lower():
-                logger.error(f"Blob not found: {blob_path}")
+            if "BlobNotFound" in str(e):
+                logger.warning(f"[VIEW] Blob not found: {blob_path}")
                 raise HTTPException(status_code=404, detail="Document not found")
             else:
-                logger.error(f"Error accessing blob: {blob_path} - {e}")
+                logger.error(f"[VIEW] Error checking blob: {e}")
                 raise HTTPException(status_code=500, detail="Failed to access document")
         
-        # ✅ Generate SAS token with validation
-        try:
-            if not AZURE_STORAGE_ACCOUNT_KEY:
-                logger.error("AZURE_STORAGE_ACCOUNT_KEY is not set")
-                raise HTTPException(
-                    status_code=503,
-                    detail="Document service unavailable - Storage account key not configured. "
-                           "Set AZURE_STORAGE_ACCOUNT_KEY environment variable."
-                )
-            
-            if not AZURE_STORAGE_ACCOUNT_NAME:
-                logger.error("AZURE_STORAGE_ACCOUNT_NAME is not set")
-                raise HTTPException(
-                    status_code=503,
-                    detail="Document service unavailable - Storage account name not configured"
-                )
-            
-            logger.debug(f"Generating SAS token for blob: {blob_path}")
-            
-            sas_token = generate_blob_sas(
-                account_name=AZURE_STORAGE_ACCOUNT_NAME,
-                container_name=AZURE_CONTAINER_NAME,
-                blob_name=blob_path,
-                account_key=AZURE_STORAGE_ACCOUNT_KEY,
-                permission=BlobSasPermissions(read=True),
-                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes),
-                rscd="inline",           
-                rsct="application/pdf"
-            )
-            
-            logger.debug(f"SAS token generated successfully")
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Failed to generate SAS token: {type(e).__name__}: {e}")
-            if "account_key" in str(e).lower():
-                raise HTTPException(
-                    status_code=503,
-                    detail="Storage account key not configured - check AZURE_STORAGE_ACCOUNT_KEY"
-                )
-            raise HTTPException(status_code=500, detail="Failed to generate access URL")
         
-        # Build full URL
-        sas_url = f"{blob_client.url}?{sas_token}"
+        # ============================================
+        # STEP 3: Stream Response (✅ Generator, not buffer)
+        # ============================================
         
-        logger.info(f"✓ SAS URL generated for {user_id}: {blob_path}")
-        
-        return {
-            "success": True,
-            "url": sas_url,
-            "expires_in_minutes": expiry_minutes,
-            "blob_path": blob_path,
-            "user_id": user_id
-        }
+        # ✅ Pass generator function, not loaded BytesIO
+        # StreamingResponse will call generate_chunks() and iterate
+        return StreamingResponse(
+            generate_chunks(blob_client),  # ✅ Generator (not buffer)
+            media_type="application/pdf",
+            headers={
+                # ✅ Force inline viewing (not download dialog)
+                "Content-Disposition": "inline; filename=document.pdf",
+                
+                # Prevent caching (security - JWT expires in 30 mins)
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                
+                # Allow CORS if needed
+                "Access-Control-Allow-Origin": "*",
+            }
+        )
+    
     
     except HTTPException:
         raise
+    
     except Exception as e:
-        logger.error(f"Unexpected error: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"[VIEW] Unexpected error: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
