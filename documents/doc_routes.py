@@ -179,7 +179,6 @@ async def generate_view_url(
             temp_blob_client.upload_blob(
                 download_stream,
                 overwrite=True,
-                raw_response=False
             )
             
             logger.info(f"[GENERATE-URL] Copied to temp container: {temp_filename}")
