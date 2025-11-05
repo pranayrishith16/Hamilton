@@ -42,7 +42,7 @@ from auth.security_middleware import (
     AuditLoggingMiddleware
 )
 from memory.memory_routes import router as memory_router
-from documents.doc_routes import create_temp_container, router as document_router
+from documents.doc_routes import router as document_router
 
 from auth.rbac_dependencies import (
     verify_jwt_token,
