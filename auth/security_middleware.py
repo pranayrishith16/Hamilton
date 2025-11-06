@@ -70,25 +70,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class HTTPSEnforcementMiddleware(BaseHTTPMiddleware):
-    """Enforce HTTPS in production"""
-    
-    async def dispatch(self, request: Request, call_next):
-        # Only enforce in production
-        import os
-        if os.getenv("ENVIRONMENT") == "production":
-            # Check if request is HTTPS
-            scheme = request.url.scheme
-            x_forwarded_proto = request.headers.get("x-forwarded-proto")
-            
-            if scheme != "https" and x_forwarded_proto != "https":
-                raise HTTPException(
-                    status_code=403,
-                    detail="HTTPS required"
-                )
+class HTTPSEnforcementMiddleware:
+    async def __call__(self, request: Request, call_next):
+        # Check if request came through HTTPS OR has X-Forwarded-Proto header
+        forwarded_proto = request.headers.get("x-forwarded-proto", "")
         
-        response = await call_next(request)
-        return response
+        if request.url.scheme == "https" or forwarded_proto == "https":
+            # Request is already HTTPS or came through secure Front Door
+            return await call_next(request)
+        
+        # Only redirect if actually not HTTPS
+        return RedirectResponse(url=request.url.replace(scheme="https"), status_code=307)
 
 
 class TokenBlacklistMiddleware(BaseHTTPMiddleware):

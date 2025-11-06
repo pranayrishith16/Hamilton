@@ -65,8 +65,6 @@ app.add_middleware(AuditLoggingMiddleware)
 app.add_middleware(SecurityLoggingMiddleware)
 app.add_middleware(TokenBlacklistMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
-app.add_middleware(HTTPSEnforcementMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=[
@@ -77,6 +75,9 @@ app.add_middleware(
         "*.azurefd.net",
     ]
 )
+app.add_middleware(HTTPSEnforcementMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ==================== CORS MIDDLEWARE ====================
 
