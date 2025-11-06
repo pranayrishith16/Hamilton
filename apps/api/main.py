@@ -39,8 +39,9 @@ from auth.security_middleware import (
     TokenBlacklistMiddleware,
     SecurityLoggingMiddleware,
     RateLimitMiddleware,
-    AuditLoggingMiddleware
+    AuditLoggingMiddleware,
 )
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from memory.memory_routes import router as memory_router
 from documents.doc_routes import router as document_router
 
@@ -79,6 +80,31 @@ app.add_middleware(TokenBlacklistMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# ==================== ROUTERS ====================
+
+router = APIRouter(prefix="/api/base", tags=["base"])
+
+app.include_router(router)
+app.include_router(auth_router)
+app.include_router(memory_router)
+app.include_router(document_router)
+
+# ==================== CORS MIDDLEWARE ====================
+
+
+
+# Update CSP headers to allow iframes
+# ==================== SECURITY MIDDLEWARE STACK ====================
+
+# Add security middleware in order of execution
+app.add_middleware(AuditLoggingMiddleware)
+app.add_middleware(SecurityLoggingMiddleware)
+app.add_middleware(TokenBlacklistMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(HTTPSEnforcementMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["veritlyai.com", "www.veritlyai.com"])  # ✅ Add this
 
 # ==================== ROUTERS ====================
 

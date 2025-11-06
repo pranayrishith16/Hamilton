@@ -16,7 +16,7 @@ import re
 
 from auth.tier_config import validate_tier
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # ==================== REQUEST MODELS ====================
 
