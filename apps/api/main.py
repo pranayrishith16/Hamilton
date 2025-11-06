@@ -104,7 +104,16 @@ app.add_middleware(TokenBlacklistMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["veritlyai.com", "www.veritlyai.com"])  # ✅ Add this
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=[
+        "veritlyai.com", 
+        "www.veritlyai.com", 
+        "api.veritlyai.com",
+        "*.veritlyai.com",      # Catch all subdomains
+        "*.azurefd.net",        # Allow Front Door
+    ]
+)
 
 # ==================== ROUTERS ====================
 
