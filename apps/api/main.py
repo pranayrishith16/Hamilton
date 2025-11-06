@@ -95,9 +95,6 @@ app.add_middleware(
 
 # ==================== ROUTERS ====================
 
-base_router = APIRouter(prefix="/api/base", tags=["base"])
-
-app.include_router(base_router)
 app.include_router(auth_router)
 app.include_router(memory_router)
 app.include_router(document_router)
@@ -258,7 +255,7 @@ def get_db_session():
 
 # ==================== QUERY ENDPOINTS ====================
 
-@base_router.get("/")
+@app.get("/")
 async def base_root():
     """Root endpoint that returns API information."""
     from fastapi.routing import APIRoute
@@ -671,7 +668,7 @@ async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verif
 
 # ==================== INDEX MANAGEMENT ENDPOINTS ====================
 
-# @base_router.post("/index/build")
+# @app.post("/index/build")
 # async def build_index_endpoint(request: IndexBuildRequest, user: dict = Depends(verify_jwt)):
 #     """
 #     PROTECTED + ADMIN ONLY: Build/rebuild retriever indexes.
@@ -868,7 +865,7 @@ async def get_hybrid_config():
 
 # ==================== HEALTH & INFO ENDPOINTS ====================
 
-@base_router.get("/health")
+@app.get("/health")
 async def health_check():
     """
     Health check endpoint for monitoring system status.
