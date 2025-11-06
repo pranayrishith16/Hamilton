@@ -38,7 +38,7 @@ security = HTTPBearer()
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/memory", tags=["memory"])
+router = APIRouter(prefix="/memory", tags=["memory"])
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """
