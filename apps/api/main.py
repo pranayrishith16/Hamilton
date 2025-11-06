@@ -117,7 +117,7 @@ app.add_middleware(
 
 # ==================== ROUTERS ====================
 
-router = APIRouter(prefix="/base", tags=["base"])
+router = APIRouter(prefix="/api/base", tags=["base"])
 
 app.include_router(router)
 app.include_router(auth_router)
