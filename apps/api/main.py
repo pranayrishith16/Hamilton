@@ -18,7 +18,7 @@ from memory.service import ConversationService
 from memory.utils import estimate_tokens, format_context_string
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Header, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Depends, BackgroundTasks, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -80,6 +80,15 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
+# ==================== ROUTERS ====================
+
+router = APIRouter(prefix="/base", tags=["base"])
+
+app.include_router(router)
+app.include_router(auth_router)
+app.include_router(memory_router)
+app.include_router(document_router)
+
 # ==================== CORS MIDDLEWARE ====================
 
 FRONTEND_DOMAINS = [
@@ -113,7 +122,7 @@ app.add_middleware(
 )
 
 # Update CSP headers to allow iframes
-@app.middleware("http")
+@router.middleware("http")
 async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
     
@@ -148,12 +157,6 @@ async def set_security_headers(request: Request, call_next):
     )
     
     return response
-
-# ==================== ROUTERS ====================
-
-app.include_router(auth_router)
-app.include_router(memory_router)
-app.include_router(document_router)
 
 # ==================== Request/Response Models ====================
 
@@ -246,7 +249,7 @@ def get_db_session():
 
 # ==================== QUERY ENDPOINTS ====================
 
-@app.get("/")
+@router.get("/")
 async def root():
     """
     Root endpoint that returns API information and available endpoints.
@@ -284,7 +287,7 @@ async def root():
 
 # ==================== QUERY ENDPOINTS (PROTECTED) ====================
 
-@app.post("/query")
+@router.post("/query")
 async def query_endpoint(
     request: QueryRequest,
     db: Session = Depends(get_db),
@@ -417,7 +420,7 @@ async def query_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/query/stream")
+@router.post("/query/stream")
 async def query_stream(
     request: QueryRequest,
     db: Session = Depends(get_db),
@@ -587,7 +590,7 @@ async def query_stream(
 
 # ==================== RETRIEVAL ENDPOINTS ====================
 
-@app.post("/retrieve")
+@router.post("/retrieve")
 async def retrieve_endpoint(request: RetrieveRequest, user: dict = Depends(verify_jwt)):
     """
     Direct retrieval endpoint without generation.
@@ -629,7 +632,7 @@ async def retrieve_endpoint(request: RetrieveRequest, user: dict = Depends(verif
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/generate")
+@router.post("/generate")
 async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verify_jwt)):
     """
     PROTECTED: Direct generation endpoint.
@@ -662,7 +665,7 @@ async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verif
 
 # ==================== INDEX MANAGEMENT ENDPOINTS ====================
 
-# @app.post("/index/build")
+# @router.post("/index/build")
 # async def build_index_endpoint(request: IndexBuildRequest, user: dict = Depends(verify_jwt)):
 #     """
 #     PROTECTED + ADMIN ONLY: Build/rebuild retriever indexes.
@@ -692,7 +695,7 @@ async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verif
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/index/stats/{retriever_type}")
+@router.get("/index/stats/{retriever_type}")
 async def get_index_stats(retriever_type: str):
     """
     Get statistics about a specific retriever's index.
@@ -720,7 +723,7 @@ async def get_index_stats(retriever_type: str):
 
 # ==================== CONFIGURATION ENDPOINTS ====================
 
-@app.get("/config")
+@router.get("/config")
 async def get_config():
     """
     Get all system configuration.
@@ -741,7 +744,7 @@ async def get_config():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.get("/config/{section}")
+@router.get("/config/{section}")
 async def get_config_section(section: str):
     """
     Get specific configuration section.
@@ -756,7 +759,7 @@ async def get_config_section(section: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/config/reload")
+@router.post("/config/reload")
 async def reload_config(user: dict = Depends(verify_jwt)):
     """
     PROTECTED + ADMIN ONLY: Reload configuration.
@@ -774,7 +777,7 @@ async def reload_config(user: dict = Depends(verify_jwt)):
 
 # ==================== COMPONENT ENDPOINTS ====================
 
-@app.get("/components")
+@router.get("/components")
 async def list_components():
     """
     List all registered components in the system.
@@ -793,7 +796,7 @@ async def list_components():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/component/{component_name}/info")
+@router.get("/component/{component_name}/info")
 async def get_component_info(component_name: str):
     """
     Get detailed information about a specific component.
@@ -823,7 +826,7 @@ async def get_component_info(component_name: str):
 
 # ==================== RETRIEVER SPECIFIC ENDPOINTS ====================
 
-@app.post("/bm25/clear-cache")
+@router.post("/bm25/clear-cache")
 async def clear_bm25_cache(user: dict = Depends(verify_jwt)):
     """
     PROTECTED + ADMIN ONLY: Clear BM25 cache.
@@ -840,7 +843,7 @@ async def clear_bm25_cache(user: dict = Depends(verify_jwt)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/hybrid/config")
+@router.get("/hybrid/config")
 async def get_hybrid_config():
     """
     Get hybrid retriever configuration and statistics.
@@ -859,7 +862,7 @@ async def get_hybrid_config():
 
 # ==================== HEALTH & INFO ENDPOINTS ====================
 
-@app.get("/health")
+@router.get("/health")
 async def health_check():
     """
     Health check endpoint for monitoring system status.
