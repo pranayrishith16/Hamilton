@@ -81,7 +81,8 @@ async def view_document_inline(
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f"inline; filename={filename}",
-                "Cache-Control": "public, max-age=3600"
+                "Cache-Control": "public, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
             }
         )
         

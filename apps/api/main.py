@@ -83,10 +83,10 @@ app.add_middleware(SecurityHeadersMiddleware)
 # ==================== CORS MIDDLEWARE ====================
 
 FRONTEND_DOMAINS = [
-    "http://localhost:5173",           # Local dev
-    "http://localhost:3000",           # Alternative local
-    "https://veritlyai.com",           # Production frontend
-    "https://www.veritlyai.com",       # Production www
+    "https://veritlyai.com",
+    "https://www.veritlyai.com",
+    "http://localhost:5173",      # Local dev
+    "http://localhost:3000",
 ]
 
 # Add CORS middleware
@@ -94,24 +94,58 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_DOMAINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",              # ✅ Critical for JWT
+        "Accept",
+        "Accept-Language",
+        "Accept-Encoding",
+        "Origin",
+    ],
+    expose_headers=[
+        "Content-Disposition",
+        "Content-Type",
+        "Content-Length",
+        "Access-Control-Allow-Origin",
+    ],
+    max_age=86400,
 )
 
 # Update CSP headers to allow iframes
 @app.middleware("http")
-async def add_security_headers(request, call_next):
+async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
     
-    # ✅ UPDATE CSP to allow iframes from frontend
+    # ✅ Content Security Policy - Allow api.veritlyai.com
     response.headers["Content-Security-Policy"] = (
-        f"frame-ancestors {' '.join([domain.replace('http://', '').replace('https://', '') for domain in FRONTEND_DOMAINS])}"
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        # ✅ Allow connections to api.veritlyai.com and blob: for iframes
+        "connect-src 'self' https://api.veritlyai.com https://veritlyai.com wss://api.veritlyai.com; "
+        "frame-src 'self' blob:; "
+        "object-src 'none'; "
     )
     
-    # Other security headers
+    # ✅ Tell Brave and other browsers this is legitimate
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # ✅ Permissions policy (disable unnecessary permissions)
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), "
+        "microphone=(), "
+        "camera=(), "
+        "payment=(), "
+        "usb=(), "
+        "magnetometer=(), "
+        "gyroscope=(), "
+        "accelerometer=()"
+    )
     
     return response
 
