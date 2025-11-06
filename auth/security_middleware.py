@@ -8,6 +8,7 @@ Security middleware for FastAPI:
 """
 
 from fastapi import Request, HTTPException
+from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from datetime import datetime
