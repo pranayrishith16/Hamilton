@@ -139,25 +139,21 @@ app.add_middleware(
 async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
     
-    # ✅ Content Security Policy - Allow api.veritlyai.com
+    # ✅ Updated CSP to allow Swagger UI from CDN
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "  # ✅ Allow CDN scripts
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "  # ✅ Allow CDN styles
         "img-src 'self' data: https:; "
-        # ✅ Allow connections to api.veritlyai.com and blob: for iframes
-        "connect-src 'self' https://api.veritlyai.com https://veritlyai.com wss://api.veritlyai.com; "
+        "connect-src 'self'; "
         "frame-src 'self' blob:; "
         "object-src 'none'; "
     )
     
-    # ✅ Tell Brave and other browsers this is legitimate
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    
-    # ✅ Permissions policy (disable unnecessary permissions)
     response.headers["Permissions-Policy"] = (
         "geolocation=(), "
         "microphone=(), "
