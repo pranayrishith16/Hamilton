@@ -80,40 +80,18 @@ app.add_middleware(TokenBlacklistMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-
-# ==================== ROUTERS ====================
-
-router = APIRouter(prefix="/api/base", tags=["base"])
-
-app.include_router(router)
-app.include_router(auth_router)
-app.include_router(memory_router)
-app.include_router(document_router)
-
-# ==================== CORS MIDDLEWARE ====================
-
-
-
-# Update CSP headers to allow iframes
-# ==================== SECURITY MIDDLEWARE STACK ====================
-
-# Add security middleware in order of execution
-app.add_middleware(AuditLoggingMiddleware)
-app.add_middleware(SecurityLoggingMiddleware)
-app.add_middleware(TokenBlacklistMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
-app.add_middleware(HTTPSEnforcementMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
-    TrustedHostMiddleware, 
+    TrustedHostMiddleware,
     allowed_hosts=[
-        "veritlyai.com", 
-        "www.veritlyai.com", 
+        "veritlyai.com",
+        "www.veritlyai.com",
         "api.veritlyai.com",
         "*.veritlyai.com",      # Catch all subdomains
         "*.azurefd.net",        # Allow Front Door
     ]
 )
+
+
 
 # ==================== ROUTERS ====================
 
@@ -285,11 +263,8 @@ def get_db_session():
 # ==================== QUERY ENDPOINTS ====================
 
 @router.get("/")
-async def root():
-    """
-    Root endpoint that returns API information and available endpoints.
-    Displays features and all available routes for self-documentation/debugging.
-    """
+async def base_root():
+    """Root endpoint that returns API information."""
     from fastapi.routing import APIRoute
     
     routes = [
@@ -322,7 +297,7 @@ async def root():
 
 # ==================== QUERY ENDPOINTS (PROTECTED) ====================
 
-@router.post("/query")
+@app.post("/api/query")
 async def query_endpoint(
     request: QueryRequest,
     db: Session = Depends(get_db),
@@ -455,7 +430,7 @@ async def query_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/query/stream")
+@app.post("/api/query/stream")
 async def query_stream(
     request: QueryRequest,
     db: Session = Depends(get_db),
@@ -625,7 +600,7 @@ async def query_stream(
 
 # ==================== RETRIEVAL ENDPOINTS ====================
 
-@router.post("/retrieve")
+@app.post("/api/retrieve")
 async def retrieve_endpoint(request: RetrieveRequest, user: dict = Depends(verify_jwt)):
     """
     Direct retrieval endpoint without generation.
@@ -667,7 +642,7 @@ async def retrieve_endpoint(request: RetrieveRequest, user: dict = Depends(verif
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/generate")
+@app.post("/api/generate")
 async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verify_jwt)):
     """
     PROTECTED: Direct generation endpoint.
@@ -730,7 +705,7 @@ async def generate_endpoint(request: GenerateRequest, user: dict = Depends(verif
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/index/stats/{retriever_type}")
+@app.get("/api/index/stats/{retriever_type}")
 async def get_index_stats(retriever_type: str):
     """
     Get statistics about a specific retriever's index.
@@ -758,7 +733,7 @@ async def get_index_stats(retriever_type: str):
 
 # ==================== CONFIGURATION ENDPOINTS ====================
 
-@router.get("/config")
+@app.get("/api/config")
 async def get_config():
     """
     Get all system configuration.
@@ -779,7 +754,7 @@ async def get_config():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/config/{section}")
+@app.get("/api/config/{section}")
 async def get_config_section(section: str):
     """
     Get specific configuration section.
@@ -794,7 +769,7 @@ async def get_config_section(section: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.post("/config/reload")
+@app.post("/api/config/reload")
 async def reload_config(user: dict = Depends(verify_jwt)):
     """
     PROTECTED + ADMIN ONLY: Reload configuration.
@@ -812,7 +787,7 @@ async def reload_config(user: dict = Depends(verify_jwt)):
 
 # ==================== COMPONENT ENDPOINTS ====================
 
-@router.get("/components")
+@app.get("/api/components")
 async def list_components():
     """
     List all registered components in the system.
@@ -831,7 +806,7 @@ async def list_components():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/component/{component_name}/info")
+@app.get("/api/component/{component_name}/info")
 async def get_component_info(component_name: str):
     """
     Get detailed information about a specific component.
@@ -861,7 +836,7 @@ async def get_component_info(component_name: str):
 
 # ==================== RETRIEVER SPECIFIC ENDPOINTS ====================
 
-@router.post("/bm25/clear-cache")
+@app.post("/api/bm25/clear-cache")
 async def clear_bm25_cache(user: dict = Depends(verify_jwt)):
     """
     PROTECTED + ADMIN ONLY: Clear BM25 cache.
@@ -878,7 +853,7 @@ async def clear_bm25_cache(user: dict = Depends(verify_jwt)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/hybrid/config")
+@app.get("/api/hybrid/config")
 async def get_hybrid_config():
     """
     Get hybrid retriever configuration and statistics.
