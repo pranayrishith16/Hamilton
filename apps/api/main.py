@@ -148,7 +148,7 @@ app.add_middleware(
 )
 
 # Update CSP headers to allow iframes
-@router.middleware("http")
+@app.middleware("http")
 async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
     
