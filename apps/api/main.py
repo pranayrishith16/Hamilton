@@ -82,15 +82,38 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # ==================== CORS MIDDLEWARE ====================
 
+FRONTEND_DOMAINS = [
+    "http://localhost:5173",           # Local dev
+    "http://localhost:3000",           # Alternative local
+    "https://veritlyai.com",           # Production frontend
+    "https://www.veritlyai.com",       # Production www
+]
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.veritlyai.com",
-                    "http://localhost:5173",],
+    allow_origins=FRONTEND_DOMAINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Update CSP headers to allow iframes
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    
+    # ✅ UPDATE CSP to allow iframes from frontend
+    response.headers["Content-Security-Policy"] = (
+        f"frame-ancestors {' '.join([domain.replace('http://', '').replace('https://', '') for domain in FRONTEND_DOMAINS])}"
+    )
+    
+    # Other security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    return response
 
 # ==================== ROUTERS ====================
 
