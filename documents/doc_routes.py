@@ -39,25 +39,54 @@ else:
     blob_service_client = None
     logger.error("❌ AZURE_STORAGE_CONNECTION_STRING not configured")
 
-@router.get("/view/{document_id}")
-async def view_document_inline(document_id: str, current_user = Depends(verify_jwt_token)):
-    """Stream PDF inline without download prompt"""
+@router.get("/view/{blob_path:path}")
+async def view_document_inline(
+    blob_path: str,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    """
+    Stream PDF inline without download prompt.
+    Accepts paths with slashes like: case_rcpdfs/sharon_kennell_v._diahann_gates.pdf
+    """
     try:
+        import urllib.parse
+        
+        # URL decode the blob_path (in case it's encoded like case_rcpdfs%2Ffile.pdf)
+        blob_path = urllib.parse.unquote(blob_path)
+        
+        logger.info(f"[VIEW] Requesting document: {blob_path}")
+        
+        # Get blob client
         blob_client = blob_service_client.get_blob_client(
             container=AZURE_CONTAINER_NAME,
-            blob=document_id
+            blob=blob_path
         )
         
+        # Verify blob exists before streaming
+        try:
+            properties = blob_client.get_blob_properties()
+            logger.info(f"[VIEW] Found blob: {blob_path} ({properties.size} bytes)")
+        except Exception as e:
+            logger.error(f"[VIEW] Blob not found: {blob_path} - {str(e)}")
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Stream the PDF
         download_stream = blob_client.download_blob()
+        
+        # Extract filename for header
+        filename = blob_path.split('/')[-1]
         
         return StreamingResponse(
             download_stream.chunks(),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": "inline; filename=document.pdf",
+                "Content-Disposition": f"inline; filename={filename}",
                 "Cache-Control": "public, max-age=3600"
             }
         )
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error viewing document: {e}")
-        raise HTTPException(status_code=404, detail="Document not found")
+        logger.error(f"[VIEW] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Document viewing failed")
