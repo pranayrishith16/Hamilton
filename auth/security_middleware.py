@@ -71,19 +71,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class HTTPSEnforcementMiddleware:
-    async def __call__(self, request: Request, call_next):
-        # Check if request came through HTTPS OR has X-Forwarded-Proto header
-        forwarded_proto = request.headers.get("x-forwarded-proto", "")
-        
-        if request.url.scheme == "https" or forwarded_proto == "https":
-            # Request is already HTTPS or came through secure Front Door
-            return await call_next(request)
-        
-        # Only redirect if actually not HTTPS
-        return RedirectResponse(url=request.url.replace(scheme="https"), status_code=307)
-
-
 class TokenBlacklistMiddleware(BaseHTTPMiddleware):
     """Check if token is blacklisted before processing request"""
     

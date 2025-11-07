@@ -76,7 +76,6 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 #         "*.z01.azurefd.net",  # Add this
 #     ]
 # )
-# app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
