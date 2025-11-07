@@ -30,7 +30,6 @@ from auth.auth_routes import router as auth_router
 from auth.auth_manager import auth_manager
 from auth.security_middleware import (
     SecurityHeadersMiddleware,
-    HTTPSEnforcementMiddleware,
     TokenBlacklistMiddleware,
     SecurityLoggingMiddleware,
     RateLimitMiddleware,
