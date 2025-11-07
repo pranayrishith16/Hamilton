@@ -115,15 +115,16 @@ async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
     
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "img-src 'self' data: https:; "
-        "connect-src 'self'; "
-        "frame-src 'self' blob:; "
-        "object-src 'none'; "
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self' https:; "  # ← Allow https connections
+    "frame-src 'self' blob: data:; "  # ← Allow data: URIs for PDFs
+    "object-src 'self' https:; "  # ← Allow object tag for PDFs
+    "media-src 'self' blob: data:; "  # ← Allow blob for media
+    "worker-src 'self' blob:; "  # ← Allow web workers
     )
-    
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
