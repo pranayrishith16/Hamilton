@@ -73,9 +73,10 @@ app.add_middleware(
         "api.veritlyai.com",
         "*.veritlyai.com",
         "*.azurefd.net",
+        "*.z01.azurefd.net",  # Add this
     ]
 )
-app.add_middleware(HTTPSEnforcementMiddleware)
+# app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
