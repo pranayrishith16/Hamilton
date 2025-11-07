@@ -65,17 +65,17 @@ app.add_middleware(AuditLoggingMiddleware)
 app.add_middleware(SecurityLoggingMiddleware)
 app.add_middleware(TokenBlacklistMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=[
-        "veritlyai.com",
-        "www.veritlyai.com",
-        "api.veritlyai.com",
-        "*.veritlyai.com",
-        "*.azurefd.net",
-        "*.z01.azurefd.net",  # Add this
-    ]
-)
+# app.add_middleware(
+#     TrustedHostMiddleware,
+#     allowed_hosts=[
+#         "veritlyai.com",
+#         "www.veritlyai.com",
+#         "api.veritlyai.com",
+#         "*.veritlyai.com",
+#         "*.azurefd.net",
+#         "*.z01.azurefd.net",  # Add this
+#     ]
+# )
 # app.add_middleware(HTTPSEnforcementMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
