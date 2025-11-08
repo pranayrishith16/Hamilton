@@ -421,7 +421,17 @@ async def query_stream(
                 
                 logger.info(f'Created new conversation: {conversation_id}')
                 
-                yield f"data: {json.dumps({'event': 'conversation_created', 'conversation_id': str(conversation_id)})}\n\n"
+                yield f"data: {json.dumps({
+                'event': 'conversation_created',
+                'conversation': {
+                    'id': str(conversation_id),
+                    'title': request.query[:100],
+                    'description': "Auto-created from streaming query",
+                    'created_at': datetime.now().isoformat(),
+                    'user_id': user['sub']
+                }
+                })}\n\n"
+
             else:
                 try:
                     context_string, context_tokens, messages_loaded = ConversationService.load_context_with_token_limit(
