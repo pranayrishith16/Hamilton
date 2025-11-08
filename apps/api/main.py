@@ -421,16 +421,17 @@ async def query_stream(
                 
                 logger.info(f'Created new conversation: {conversation_id}')
                 
-                yield f"data: {json.dumps({
-                'event': 'conversation_created',
-                'conversation': {
-                    'id': str(conversation_id),
-                    'title': request.query[:100],
-                    'description': "Auto-created from streaming query",
-                    'created_at': datetime.now().isoformat(),
-                    'user_id': user['sub']
+                conversation_data = {
+                    'event': 'conversation_created',
+                    'conversation': {
+                        'id': str(conversation_id),
+                        'title': request.query[:100],
+                        'description': 'Auto-created from streaming query',
+                        'created_at': datetime.now().isoformat(),
+                        'user_id': user['sub']
+                    }
                 }
-                })}\n\n"
+                yield f"data: {json.dumps(conversation_data)}\n\n"
 
             else:
                 try:
