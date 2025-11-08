@@ -474,6 +474,20 @@ async def query_stream(
                 logger.warning(f"Could not retrieve chunks for metadata: {e}")
                 retrieved_chunks = []
 
+            source_objects = []
+            for chunk in retrieved_chunks:
+                source_obj = {
+                    "id": str(chunk.id),
+                    "content": chunk.content,
+                    "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {},
+                    "confidence": getattr(chunk, 'confidence', None)
+                }
+                source_objects.append(source_obj)
+
+            if source_objects:
+                yield f"data: {json.dumps({'event': 'sources', 'sources': source_objects})}\n\n"
+                logger.info(f"Streamed {len(source_objects)} sources to frontend")
+
             # Store user message
             user_msg = ChatMessageRepository.create(
                 db=db,
