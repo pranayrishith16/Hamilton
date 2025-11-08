@@ -254,3 +254,28 @@ async def get_memory_stats(
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(DatabaseManager.get_session)
+):
+    """Delete a conversation and all its messages"""
+    try:
+        logger.info(f"Deleting conversation {conversation_id}")
+        
+        result = ConversationService.delete_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id
+        )
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete")

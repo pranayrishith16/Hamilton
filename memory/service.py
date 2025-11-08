@@ -288,6 +288,44 @@ class ConversationService:
             logger.error(f"Error loading context with token limit: {e}")
             raise
 
+    @staticmethod
+    def delete_conversation(
+        db: Session,
+        conversation_id: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """Delete a conversation and all its messages"""
+        try:
+            # Verify ownership
+            conversation = ConversationRepository.get_by_id(
+                db=db,
+                conversation_id=UUID(conversation_id),
+                user_id=UUID(user_id)
+            )
+            
+            if not conversation:
+                raise ValueError(f"Conversation not found or access denied")
+            
+            # Delete it
+            deleted = ConversationRepository.delete(db, UUID(conversation_id))
+            
+            if not deleted:
+                raise ValueError(f"Failed to delete conversation")
+            
+            logger.info(f"Deleted conversation {conversation_id}")
+            
+            return {
+                "status": "success",
+                "id": conversation_id,
+                "message": "Conversation deleted successfully"
+            }
+            
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting conversation: {e}")
+            raise ValueError(f"Failed to delete conversation: {str(e)}")
+
 
 class ChatMessageService:
     """
