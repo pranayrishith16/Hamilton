@@ -70,7 +70,7 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 #     TrustedHostMiddleware,
 #     allowed_hosts=[
 #         "veritlyai.com",
-#         "www.veritlyai.com",
+#         "www.veritlyai.com", 
 #         "*.veritlyai.com",
 #         "*.azurefd.net",
 #         "localhost",  # for local testing
