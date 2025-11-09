@@ -108,37 +108,34 @@ class Pipeline:
         
         # EMIT METADATA EVENT
         sources = []
-        for c in chunks:
+        for i, c in enumerate(chunks):
             try:
-                # Check if metadata is a dict
-                if isinstance(c.metadata, dict):
-                    source_name = c.metadata.get("source", "Unknown")
-                elif hasattr(c.metadata, "source"):
-                    # metadata is an object with source attribute
-                    source_name = c.metadata.source
-                else:
-                    source_name = "Unknown"
-                
-                sources.append({
-                    "id": c.id,
-                    "source": source_name,
+                source_dict = {
+                    "id": str(c.id),
+                    "source": c.metadata.get("source", "Unknown") if isinstance(c.metadata, dict) else "Unknown",
                     "snippet": c.content[:200] if c.content else "",
                     "context_used": len(context) > 0
-                })
-            except AttributeError as e:
-                self.logger.warning(f"Error processing chunk metadata: {e}")
-                # Add fallback source object
-                sources.append({
-                    "id": getattr(c, "id", "unknown"),
-                    "source": "Unknown",
-                    "snippet": "",
-                    "context_used": len(context) > 0
-                })
+                }
+                sources.append(source_dict)
+                self.logger.debug(f"Processed chunk {i+1}: {c.id}")
+            except Exception as e:
+                self.logger.error(f"Error processing chunk {i}: {e}", exc_info=True)
+                raise
         
-        yield {
-            "event": "sources",
-            "sources": sources
-        }
+        self.logger.info(f"✅ Built sources list with {len(sources)} items")
+        
+        # YIELD SOURCES EVENT
+        try:
+            sources_event = {
+                "event": "sources",
+                "sources": sources
+            }
+            self.logger.debug(f"Yielding sources event: {len(sources)} sources")
+            yield sources_event
+            self.logger.info(f"✅ Sources event yielded successfully")
+        except Exception as e:
+            self.logger.error(f"Error yielding sources: {e}", exc_info=True)
+            raise
         
         # STREAM GENERATION (with context)
         generator = registry.get("generator")

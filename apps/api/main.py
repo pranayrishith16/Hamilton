@@ -466,31 +466,37 @@ async def query_stream(
             generation_start = datetime.now()
             
             for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
+                
                 # Handle sources event
-                if chunk_dict.get('event') == 'sources' and chunk_dict.get('sources'):
-                    retrieved_chunks = chunk_dict['sources']
-                    sources_received = True
-                    retrieved_chunks = []
-                    
-                    logger.info(f"🔍 Received {len(retrieved_chunks)} sources from pipeline")
-                    
-                    # Stream each source with CORRECT event name
-                    for i, source in enumerate(retrieved_chunks):
-                        # Format source with correct field names for Redux
-                        formatted_source = {
-                            'id': source.get('id', f'source_{i}'),
-                            'content': source.get('snippet', source.get('source', '')),  # Use snippet as content
-                            'metadata': {
-                                'source_name': source.get('source', 'Unknown'),
-                                'rank': i + 1,
-                                'context_used': source.get('context_used', False)
-                            }
-                        }
-                    
-                        yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': formatted_source})}\n\n"
-                    
-                    logger.info(f"✅ Finished streaming {len(retrieved_chunks)} sources")
-                    continue
+                if isinstance(chunk_dict, dict):
+                    if chunk_dict.get('event') == 'sources' and chunk_dict.get('sources'):
+                        retrieved_chunks = chunk_dict['sources']
+                        sources_received = True
+                        logger.info(f"🔍 Received {len(retrieved_chunks)} sources from pipeline")
+                        
+                        for i, source in enumerate(retrieved_chunks):
+                            try:
+                                if isinstance(source, dict):
+                                    source_id = source.get('id', f'source_{i}')
+                                    snippet = source.get('snippet', '')
+                                    source_name = source.get('source', 'Unknown')
+                                else:
+                                    source_id = getattr(source, 'id', f'source_{i}')
+                                    snippet = getattr(source, 'snippet', '')
+                                    source_name = getattr(source, 'source', 'Unknown')
+                                
+                                formatted_source = {
+                                    'id': source_id,
+                                    'content': snippet,
+                                    'metadata': {
+                                        'source_name': source_name,
+                                        'rank': i + 1
+                                    }
+                                }
+                                yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': formatted_source})}\n\n"
+                            except Exception as e:
+                                logger.warning(f"Error processing source {i}: {e}")
+                                continue
                 
                 # Handle token events
                 if 'choices' in chunk_dict and len(chunk_dict['choices']) > 0:
