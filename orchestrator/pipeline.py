@@ -102,11 +102,7 @@ class Pipeline:
         # RETRIEVE
         t0 = time.time()
         retriever = registry.get("hybrid_retriever")
-        if hasattr(retriever.retrieve, '__await__'):
-            chunks = await retriever.retrieve(query, k=k)
-        else:
-            # Fallback: run sync retriever in thread pool
-            chunks = await asyncio.to_thread(retriever.retrieve, query, k)
+        chunks = await retriever.retrieve(query, k=k)
         t1 = time.time()
         
         # EMIT METADATA EVENT
