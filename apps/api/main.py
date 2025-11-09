@@ -478,7 +478,18 @@ async def query_stream(
                     
                     # Stream each source with CORRECT event name
                     for i, source in enumerate(retrieved_chunks):
-                        yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': source})}\n\n"
+                        # Format source with correct field names for Redux
+                        formatted_source = {
+                            'id': source.get('id', f'source_{i}'),
+                            'content': source.get('snippet', source.get('source', '')),  # Use snippet as content
+                            'metadata': {
+                                'source_name': source.get('source', 'Unknown'),
+                                'rank': i + 1,
+                                'context_used': source.get('context_used', False)
+                            }
+                        }
+                    
+                    yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': formatted_source})}\n\n"
                     
                     logger.info(f"✅ Finished streaming {len(retrieved_chunks)} sources")
                     continue
