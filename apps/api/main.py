@@ -481,7 +481,7 @@ async def query_stream(
                         # Format source with correct field names for Redux
                         formatted_source = {
                             'id': source.get('id', f'source_{i}'),
-                            'content': source.get('snippet', source.get('source', '')),  # Use snippet as content
+                            'content': source.get('content', source.get('source', '')),  # Use snippet as content
                             'metadata': {
                                 'source_name': source.get('source', 'Unknown'),
                                 'rank': i + 1,
