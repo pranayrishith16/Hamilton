@@ -465,7 +465,7 @@ async def query_stream(
             # Start streaming generation
             generation_start = datetime.now()
             
-            for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
+            async for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
                 if chunk_dict.get("event") == "sources" and chunk_dict.get("sources"):
                     retrieved_chunks = chunk_dict["sources"]
                     sources_received = True

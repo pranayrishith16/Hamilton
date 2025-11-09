@@ -33,12 +33,19 @@ class HybridRetriever(Retriever):
     
     async def retrieve(self, query: str, k: int = 10) -> List[Chunk]:
         """Retrieve using optimized RRF fusion."""
+        self._ensure_retrievers()
         with trace_request("retrieve", "hybrid_retriever.retrieve"):
             # Get candidates from both retrievers
             # Use k instead of k*2 to reduce computation
-            bm25_cands, dense_cands = await asyncio.gather(
-                asyncio.to_thread(self.bm25_retriever.retrieve, query, k=min(k*3, 50)),
-                asyncio.to_thread(self.dense_retriever.retrieve, query, k=min(k*3, 50))
+            bm25_cands = await asyncio.to_thread(
+                self.bm25_retriever.retrieve, 
+                query, 
+                min(k * 3, 50)
+            )
+            dense_cands = await asyncio.to_thread(
+                self.dense_retriever.retrieve, 
+                query, 
+                min(k * 3, 50)
             )
             
             # Use RRF for more efficient fusion
