@@ -465,7 +465,7 @@ async def query_stream(
             # Start streaming generation
             generation_start = datetime.now()
             
-            async for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
+            for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
                 # Handle sources event
                 if chunk_dict.get('event') == 'sources' and chunk_dict.get('sources'):
                     retrieved_chunks = chunk_dict['sources']
@@ -489,7 +489,7 @@ async def query_stream(
                             }
                         }
                     
-                    yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': formatted_source})}\n\n"
+                        yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': formatted_source})}\n\n"
                     
                     logger.info(f"✅ Finished streaming {len(retrieved_chunks)} sources")
                     continue
