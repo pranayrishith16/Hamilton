@@ -466,23 +466,38 @@ async def query_stream(
             generation_start = datetime.now()
             
             async for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
-                if chunk_dict.get("event") == "sources" and chunk_dict.get("sources"):
-                    retrieved_chunks = chunk_dict["sources"]
+                # Handle sources event
+                if chunk_dict.get('event') == 'sources' and chunk_dict.get('sources'):
+                    retrieved_chunks = chunk_dict['sources']
                     sources_received = True
                     
-                    # ✅ Stream each source 1 by 1 immediately
-                    for i, source in enumerate(retrieved_chunks):
-                        yield f"data: {json.dumps({'event': 'source', 'source': source})}\n\n"
+                    logger.info(f"🔍 Received {len(retrieved_chunks)} sources from pipeline")
                     
-                    logger.info(f"Streamed {len(retrieved_chunks)} sources from pipeline")
+                    # Emit analyzing status FIRST
+                    yield f"data: {json.dumps({'event': 'analyzing', 'status': 'Analyzing sources...'})}\n\n"
+                    
+                    # Stream each source with CORRECT event name
+                    for i, source in enumerate(retrieved_chunks):
+                        yield f"data: {json.dumps({'event': 'source_retrieved', 'rank': i+1, 'source': source})}\n\n"
+                    
+                    logger.info(f"✅ Finished streaming {len(retrieved_chunks)} sources")
                     continue
-                if "choices" in chunk_dict and len(chunk_dict["choices"]) > 0:
-                    delta = chunk_dict["choices"][0].get("delta", {})
-                    if delta.get("content"):
-                        token = delta["content"]
+                
+                # Handle token events
+                if 'choices' in chunk_dict and len(chunk_dict['choices']) > 0:
+                    delta = chunk_dict['choices'][0].get('delta', {})
+                    if delta.get('content'):
+                        token = delta['content']
+                        
+                        # Skip DONE marker - frontend will see it
+                        if token == 'DONE':
+                            logger.info(f"✅ Generation complete: {tokens_streamed} tokens")
+                            break
+                        
                         full_answer += token
                         tokens_streamed += 1
                         
+                        # Emit token
                         yield f"data: {json.dumps({'event': 'token', 'content': token, 'tokens_streamed': tokens_streamed})}\n\n"
             
             generation_time_ms = (datetime.now() - generation_start).total_seconds() * 1000
