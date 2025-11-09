@@ -101,19 +101,23 @@ class Pipeline:
         # RETRIEVE
         t0 = time.time()
         retriever = registry.get("hybrid_retriever")
+        logger.info(f'Loading retriever')
         chunks = retriever.retrieve(query, k=k)
+        logger.info(f'{len(chunks)}')
         t1 = time.time()
         
         # EMIT METADATA EVENT
         sources = []
         for c in chunks:
             try:
-                # Safely extract metadata - handle both dict and object
+                # Check if metadata is a dict
                 if isinstance(c.metadata, dict):
                     source_name = c.metadata.get("source", "Unknown")
+                elif hasattr(c.metadata, "source"):
+                    # metadata is an object with source attribute
+                    source_name = c.metadata.source
                 else:
-                    # metadata is an object
-                    source_name = getattr(c.metadata, "source", "Unknown") if c.metadata else "Unknown"
+                    source_name = "Unknown"
                 
                 sources.append({
                     "id": c.id,
@@ -121,8 +125,9 @@ class Pipeline:
                     "snippet": c.content[:200] if c.content else "",
                     "context_used": len(context) > 0
                 })
-            except Exception as e:
+            except AttributeError as e:
                 self.logger.warning(f"Error processing chunk metadata: {e}")
+                # Add fallback source object
                 sources.append({
                     "id": getattr(c, "id", "unknown"),
                     "source": "Unknown",
@@ -131,8 +136,8 @@ class Pipeline:
                 })
         
         yield {
-        "event": "sources",
-        "sources": sources
+            "event": "sources",
+            "sources": sources
         }
         
         # STREAM GENERATION (with context)
