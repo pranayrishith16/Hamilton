@@ -470,11 +470,9 @@ async def query_stream(
                 if chunk_dict.get('event') == 'sources' and chunk_dict.get('sources'):
                     retrieved_chunks = chunk_dict['sources']
                     sources_received = True
+                    retrieved_chunks = []
                     
                     logger.info(f"🔍 Received {len(retrieved_chunks)} sources from pipeline")
-                    
-                    # Emit analyzing status FIRST
-                    yield f"data: {json.dumps({'event': 'analyzing', 'status': 'Analyzing sources...'})}\n\n"
                     
                     # Stream each source with CORRECT event name
                     for i, source in enumerate(retrieved_chunks):
@@ -530,14 +528,16 @@ async def query_stream(
             logger.info(f"Stored user message: {user_msg.id}")
 
             source_objects = []
-            for chunk in retrieved_chunks:
+            for i, chunk in enumerate(retrieved_chunks):
                 source_obj = {
-                    "id": str(chunk.id),  # Document ID
-                    "content": chunk.content,  # Full text excerpt
-                    "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {},  # Metadata dict
-                    "confidence": getattr(chunk, 'confidence', None)  # Optional confidence score
+                    "id": str(chunk.get('id', f'source_{i}')),  # ✅ CORRECT
+                    "content": chunk.get('content', ''),  # ✅ CORRECT
+                    "metadata": chunk.get('metadata', {}),
+                    "source": chunk.get('source', 'Unknown'),
+                    "confidence": chunk.get('confidence', None)
                 }
                 source_objects.append(source_obj)
+
 
             # Store assistant message
             assistant_msg = ChatMessageRepository.create(

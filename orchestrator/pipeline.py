@@ -105,15 +105,30 @@ class Pipeline:
         t1 = time.time()
         
         # EMIT METADATA EVENT
-        sources = [
-            {
-                "id": c.id,
-                "source": c.metadata.get("source"),
-                "snippet": c.content[:200],
-                "context_used": len(context) > 0  # Indicate if memory was used
-            }
-            for c in chunks
-        ]
+        sources = []
+        for c in chunks:
+            try:
+                # Safely extract metadata - handle both dict and object
+                if isinstance(c.metadata, dict):
+                    source_name = c.metadata.get("source", "Unknown")
+                else:
+                    # metadata is an object
+                    source_name = getattr(c.metadata, "source", "Unknown") if c.metadata else "Unknown"
+                
+                sources.append({
+                    "id": c.id,
+                    "source": source_name,
+                    "snippet": c.content[:200] if c.content else "",
+                    "context_used": len(context) > 0
+                })
+            except Exception as e:
+                self.logger.warning(f"Error processing chunk metadata: {e}")
+                sources.append({
+                    "id": getattr(c, "id", "unknown"),
+                    "source": "Unknown",
+                    "snippet": "",
+                    "context_used": len(context) > 0
+                })
         
         yield {
         "event": "sources",
