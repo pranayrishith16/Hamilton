@@ -1,6 +1,5 @@
 #Query-time DAG implementation: route→retrieve→rerank→generate→verify; emits traces/metrics
 
-import asyncio
 from pathlib import Path
 from typing import Iterator, List, Optional, Dict, Any, AsyncGenerator
 import time
@@ -85,12 +84,12 @@ class Pipeline:
             metadata=metadata,
         )
 
-    async def query_stream(
+    def query_stream(
         self, 
         query: str, 
         k: int = 10,
         context: str = "" 
-    ) -> AsyncGenerator:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Streaming query with memory context.
         
@@ -102,7 +101,7 @@ class Pipeline:
         # RETRIEVE
         t0 = time.time()
         retriever = registry.get("hybrid_retriever")
-        chunks = await retriever.retrieve(query, k=k)
+        chunks = retriever.retrieve(query, k=k)
         t1 = time.time()
         
         # EMIT METADATA EVENT

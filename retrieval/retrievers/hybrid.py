@@ -4,7 +4,6 @@ from retrieval.retrievers.interface import Retriever
 from ingestion.dataprep.chunkers.base import Chunk
 from orchestrator.registry import registry
 from orchestrator.observability import trace_request, log_metrics
-import asyncio
 
 class HybridRetriever(Retriever):
     """Optimized hybrid retriever using Reciprocal Rank Fusion (RRF)."""
@@ -31,17 +30,14 @@ class HybridRetriever(Retriever):
         if self.dense_retriever is None:
             self.dense_retriever = registry.get('qdrant_retriever')  # Changed from faiss_retriever
     
-    async def retrieve(self, query: str, k: int = 10) -> List[Chunk]:
+    def retrieve(self, query: str, k: int = 10) -> List[Chunk]:
         """Retrieve using optimized RRF fusion."""
         self._ensure_retrievers()
         with trace_request("retrieve", "hybrid_retriever.retrieve"):
             # Get candidates from both retrievers
             # Use k instead of k*2 to reduce computation
-            bm25_task = asyncio.to_thread(self.bm25_retriever.retrieve, query, min(k * 3, 50))
-            dense_task = asyncio.to_thread(self.dense_retriever.retrieve, query, min(k * 3, 50))
-
-            # Wait for BOTH at the same time
-            bm25_cands, dense_cands = await asyncio.gather(bm25_task, dense_task)
+            bm25_cands = self.bm25_retriever.retrieve, query, min(k * 3, 50)
+            dense_cands = self.dense_retriever.retrieve, query, min(k * 3, 50)
                         
             # Use RRF for more efficient fusion
             rrf_scores = self._compute_rrf_scores(bm25_cands, dense_cands)
