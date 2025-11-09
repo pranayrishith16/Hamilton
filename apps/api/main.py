@@ -64,7 +64,7 @@ app = FastAPI(
 app.add_middleware(AuditLoggingMiddleware)
 app.add_middleware(SecurityLoggingMiddleware)
 app.add_middleware(TokenBlacklistMiddleware)
-app.add_middleware(GZIPMiddleware, minimum_size=1000)  
+app.add_middleware(GZipMiddleware, minimum_size=1000)  
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 # app.add_middleware(
 #     TrustedHostMiddleware,
