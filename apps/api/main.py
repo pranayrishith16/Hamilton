@@ -10,6 +10,7 @@ from memory.database import DatabaseManager, get_db
 from memory.repository import ChatMessageRepository, ConversationRepository
 from memory.service import ConversationService
 from memory.utils import estimate_tokens, format_context_string
+from starlette.middleware.gzip import GZIPMiddleware
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -63,6 +64,7 @@ app = FastAPI(
 app.add_middleware(AuditLoggingMiddleware)
 app.add_middleware(SecurityLoggingMiddleware)
 app.add_middleware(TokenBlacklistMiddleware)
+app.add_middleware(GZIPMiddleware, minimum_size=1000)  
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 # app.add_middleware(
 #     TrustedHostMiddleware,
@@ -395,13 +397,14 @@ async def query_stream(
     """
     async def event_generator():
         # Initialize all variables at start so they exist in any execution path
-        retrieved_chunks = []
         conversation_id = None
         context_tokens = 0
         messages_loaded = 0
         tokens_streamed = 0
         full_answer = ""
         generation_start = None
+        retrieved_chunks = []
+        sources_received = False
 
         try:
             logger.info(f"Streaming query from user {user['sub']}: {request.query[:50]}...")
@@ -421,17 +424,16 @@ async def query_stream(
                 
                 logger.info(f'Created new conversation: {conversation_id}')
                 
-                conversation_data = {
-                    'event': 'conversation_created',
-                    'conversation': {
-                        'id': str(conversation_id),
-                        'title': request.query[:100],
-                        'description': 'Auto-created from streaming query',
-                        'created_at': datetime.now().isoformat(),
-                        'user_id': user['sub']
-                    }
+                yield f"data: {json.dumps({
+                'event': 'conversation_created',
+                'conversation': {
+                    'id': str(conversation_id),
+                    'title': request.query[:100],
+                    'description': "Auto-created from streaming query",
+                    'created_at': datetime.now().isoformat(),
+                    'user_id': user['sub']
                 }
-                yield f"data: {json.dumps(conversation_data)}\n\n"
+                })}\n\n"
 
             else:
                 try:
@@ -461,6 +463,16 @@ async def query_stream(
             generation_start = datetime.now()
             
             for chunk_dict in pipeline.query_stream(request.query, k=request.k, context=context_string):
+                if chunk_dict.get("event") == "sources" and chunk_dict.get("sources"):
+                    retrieved_chunks = chunk_dict["sources"]
+                    sources_received = True
+                    
+                    # ✅ Stream each source 1 by 1 immediately
+                    for i, source in enumerate(retrieved_chunks):
+                        yield f"data: {json.dumps({'event': 'source', 'source': source})}\n\n"
+                    
+                    logger.info(f"Streamed {len(retrieved_chunks)} sources from pipeline")
+                    continue
                 if "choices" in chunk_dict and len(chunk_dict["choices"]) > 0:
                     delta = chunk_dict["choices"][0].get("delta", {})
                     if delta.get("content"):
@@ -476,29 +488,6 @@ async def query_stream(
             
             yield f"data: {json.dumps({'event': 'generation_complete', 'total_tokens': tokens_streamed, 'generation_time_ms': generation_time_ms})}\n\n"
 
-            # Retrieve chunks for metadata if any
-            try:
-                retrieval_result = pipeline.query(request.query, k=request.k, context=context_string)
-                retrieved_chunks = retrieval_result.retrieved_chunks
-                logger.info(f"Retrieved {len(retrieved_chunks)} chunks for metadata")
-            except Exception as e:
-                logger.warning(f"Could not retrieve chunks for metadata: {e}")
-                retrieved_chunks = []
-
-            source_objects = []
-            for chunk in retrieved_chunks:
-                source_obj = {
-                    "id": str(chunk.id),
-                    "content": chunk.content,
-                    "metadata": chunk.metadata if hasattr(chunk, 'metadata') else {},
-                    "confidence": getattr(chunk, 'confidence', None)
-                }
-                source_objects.append(source_obj)
-
-            if source_objects:
-                yield f"data: {json.dumps({'event': 'sources', 'sources': source_objects})}\n\n"
-                logger.info(f"Streamed {len(source_objects)} sources to frontend")
-
             # Store user message
             user_msg = ChatMessageRepository.create(
                 db=db,
@@ -509,11 +498,10 @@ async def query_stream(
                 sources=None,
                 tokens_used=estimate_tokens(request.query)
             )
-            db.commit()
             logger.info(f"Stored user message: {user_msg.id}")
 
             source_objects = []
-            for chunk in retrieval_result.retrieved_chunks:
+            for chunk in retrieved_chunks:
                 source_obj = {
                     "id": str(chunk.id),  # Document ID
                     "content": chunk.content,  # Full text excerpt

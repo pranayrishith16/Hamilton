@@ -116,13 +116,9 @@ class Pipeline:
         ]
         
         yield {
-            "metadata": {
-                "sources": sources,
-                "context_available": len(context) > 0,
-                "context_length": len(context)
-            },
-            "choices": [{"delta": {"content": ""}}]
-        }
+        "event": "sources",
+        "sources": sources
+    }
         
         # STREAM GENERATION (with context)
         generator = registry.get("generator")

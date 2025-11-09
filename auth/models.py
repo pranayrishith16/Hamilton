@@ -5,6 +5,7 @@ Uses pymssql driver (no ODBC required).
 
 from sqlalchemy import Date, ForeignKey, create_engine, Column, String, Integer, Boolean, DateTime, Text, inspect
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import date, datetime
 import os
@@ -182,7 +183,16 @@ def get_engine():
     
     print(f"Connecting to: {server}/{database}")
     
-    _engine = create_engine(connection_uri, pool_size=10, max_overflow=20)
+    _engine = create_engine(
+        connection_uri, 
+        poolclass=QueuePool,
+        pool_size=10, 
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=3600, 
+        pool_timeout=30, 
+        echo=False
+    )
     return _engine
 
 

@@ -132,10 +132,11 @@ class DatabaseManager:
         return create_engine(
             connection_uri,
             poolclass=pool.QueuePool,
-            pool_size=config.pool_size,
-            max_overflow=config.max_overflow,
-            pool_recycle=config.pool_recycle,
-            echo=config.echo,
+            pool_size=20,
+            max_overflow=10,
+            pool_recycle=3600,
+            echo=False,
+            pool_timeout=30,
             connect_args={"timeout": 10}
         )
 
