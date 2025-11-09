@@ -10,7 +10,7 @@ from memory.database import DatabaseManager, get_db
 from memory.repository import ChatMessageRepository, ConversationRepository
 from memory.service import ConversationService
 from memory.utils import estimate_tokens, format_context_string
-from starlette.middleware.gzip import GZIPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
